@@ -1,0 +1,27 @@
+[package]
+name         = "nixide"
+description  = "Safe & oxidized bindings to the Nix API"
+version      = "0.1.0"
+readme       = "../README.md"
+license      = "GPL-3.0"
+repository   = "https://codeberg.org/luminary/nixide"
+authors      = [
+    "_cry64 <them@dobutterfliescry.net>",
+    "foxxyora <foxxyora@noreply.codeberg.org>"
+]
+edition      = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["util"]
+expr = []
+fetchers = []
+flakes = []
+store = []
+util = []
+gc = []
+
+[dependencies]
+nixide-sys = { path = "../nixide-sys", version = "0.1.0" }
