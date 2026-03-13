@@ -55,7 +55,8 @@
               lldb
 
               cargo
-              # cargo-c
+              cargo-c
+              cargo-mommy
               cargo-llvm-cov
               cargo-nextest
 
@@ -104,7 +105,12 @@
                 BINDGEN_EXTRA_CLANG_ARGS="$BINDGEN_EXTRA_CLANG_ARGS -I$path"
               done
             '';
-            shellHook = postConfigure;
+
+            shellHook =
+              postConfigure
+              + ''
+                alias cargo="CARGO_MOMMYS_MOODS=\"chill/ominous/thirsty/yikes\" ${pkgs.cargo}/bin/cargo mommy"
+              '';
 
             env = let
               inherit (llvmPackages) llvm libclang;
