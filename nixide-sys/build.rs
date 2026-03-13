@@ -22,9 +22,6 @@ fn main() {
     // Invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=include/wrapper.h");
 
-    // Tell cargo to tell rustc to link the system shared library
-    // println!("cargo:rustc-link-lib=bz2");
-
     // Use pkg-config to find nix-store include and link paths
     // This NEEDS to be included, or otherwise `nix_api_store.h` cannot
     // be found.
