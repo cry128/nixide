@@ -1,13 +1,18 @@
 [package]
-name        = "nixide-sys"
-description = "Unsafe direct FFI bindings to libnix C API"
-version     = "0.1.0"
-license = "GPL-3.0"
+name         = "nixide-sys"
+description  = "Unsafe direct FFI bindings to libnix C API"
+version      = "0.1.0"
+readme       = "../README.md"
+license      = "GPL-3.0"
 license-file = "../LICENSE"
-authors = ["_cry64 <them@dobutterfliescry.net>",
-           "foxxyora <foxxyora@noreply.codeberg.org>"]
-repository  = "https://codeberg.org/luminary/nixide"
-edition     = "2024"
+repository   = "https://codeberg.org/luminary/nixide"
+authors      = [
+    "_cry64 <them@dobutterfliescry.net>"
+    "foxxyora <foxxyora@noreply.codeberg.org>"
+]
+
+edition      = "2024"
+build        = "build.rs"
 
 [package.metadata.docs.rs]
 targets = [ "x86_64-unknown-linux-gnu" ]
