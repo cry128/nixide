@@ -1,0 +1,32 @@
+[package]
+name        = "nixide-sys"
+description = "Unsafe direct FFI bindings to libnix C API"
+version     = "0.1.0"
+license = "GPL-3.0"
+license-file = "../LICENSE"
+authors = ["_cry64 <them@dobutterfliescry.net>",
+           "foxxyora <foxxyora@noreply.codeberg.org>"]
+repository  = "https://codeberg.org/luminary/nixide"
+edition     = "2024"
+
+[package.metadata.docs.rs]
+targets = [ "x86_64-unknown-linux-gnu" ]
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["util"]
+expr = []
+fetchers = []
+flakes = []
+store = []
+util = []
+gc = []
+
+[build-dependencies]
+bindgen              = { default-features = false, features = [ "logging", "runtime" ], version = "0.72.1" }
+doxygen-bindgen      = "0.1.3"
+pkg-config.workspace = true
+cc.workspace         = true
+

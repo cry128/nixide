@@ -3,7 +3,7 @@ result
 result-*
 
 # Rust
-**/target
+/target
 
 # Other
 nixops4-bindings-sys

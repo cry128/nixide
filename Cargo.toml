@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members  = [
+  # "nixide",
+  "nixide-sys"
+]
+
+[workspace.dependencies]
+cc         = "1.2.56"
+pkg-config = "0.3.32"
+
+# Building bindgen with optimizations makes the build script run faster, more
+# than it is offset by the additional build time added to the crate itself by
+# enabling optimizations. Since we work with bindgen, might as well.
+# P.S.: it ranges from 3x to 5x faster depending on my system, and it'll only
+# get better as the C API expands in size. So all things considered this is a
+# good thing :)
+[profile.dev.package.bindgen]
+opt-level = 3
