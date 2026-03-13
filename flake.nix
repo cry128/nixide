@@ -116,7 +116,7 @@
             env = let
               inherit (llvmPackages) llvm libclang;
             in {
-              LD_LIBRARY_PATH = "$LD_LIBRARY_PATH:${builtins.toString (lib.makeLibraryPath buildInputs)}";
+              LD_LIBRARY_PATH = builtins.toString (lib.makeLibraryPath buildInputs);
               LIBCLANG_PATH = "${libclang.lib}/lib";
 
               RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
