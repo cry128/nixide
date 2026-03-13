@@ -1,14 +1,17 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! # nixide-sys
+//!
+//! Unsafe direct FFI bindings to libnix C API.
+//!
+//! ## Safety
+//!
+//! These bindings are generated automatically and map directly to the C API.
+//! They are unsafe to use directly. Prefer using the high-level safe API in the
+//! parent crate unless you know what you're doing.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(rustdoc::bare_urls)]
+#![allow(rustdoc::invalid_html_tags)]
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

@@ -4,6 +4,3 @@ result-*
 
 # Rust
 /target
-
-# Other
-nixops4-bindings-sys

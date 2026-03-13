@@ -4,10 +4,9 @@ description  = "Unsafe direct FFI bindings to libnix C API"
 version      = "0.1.0"
 readme       = "../README.md"
 license      = "GPL-3.0"
-license-file = "../LICENSE"
 repository   = "https://codeberg.org/luminary/nixide"
 authors      = [
-    "_cry64 <them@dobutterfliescry.net>"
+    "_cry64 <them@dobutterfliescry.net>",
     "foxxyora <foxxyora@noreply.codeberg.org>"
 ]
 
@@ -35,3 +34,5 @@ doxygen-bindgen      = "0.1.3"
 pkg-config.workspace = true
 cc.workspace         = true
 
+[dev-dependencies]
+serial_test = "3.4.0"
