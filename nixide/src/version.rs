@@ -46,15 +46,15 @@ impl NixVersion {
     /// # Examples
     ///
     /// ```
-    /// use nixide::NixVersion::parse;
+    /// use nixide::NixVersion;
     ///
-    /// assert_eq!(parse("2.26"), NixVersion::new(2, 26, 0, false));
-    /// assert_eq!(parse("2.33.0pre"), NixVersion::new(2, 33, 0, true));
-    /// assert_eq!(parse("2.33"), NixVersion::new(2, 33, 0, false));
-    /// assert_eq!(parse("2.33.1"), NixVersion::new(2, 33, 1, false));
+    /// assert_eq!(NixVersion::parse("2.26"), Ok(NixVersion::new(2, 26, 0, false)));
+    /// assert_eq!(NixVersion::parse("2.33.0pre"), Ok(NixVersion::new(2, 33, 0, true)));
+    /// assert_eq!(NixVersion::parse("2.33"), Ok(NixVersion::new(2, 33, 0, false)));
+    /// assert_eq!(NixVersion::parse("2.33.1"), Ok(NixVersion::new(2, 33, 1, false)));
     ///
     /// // Pre-release versions sort before stable
-    /// assert!(parse("2.33.0pre") < parse("2.33"));
+    /// assert!(NixVersion::parse("2.33.0pre").unwrap() < NixVersion::parse("2.33").unwrap());
     /// ```
     pub fn parse(version_str: &str) -> Result<Self, ParseIntError> {
         let parts = version_str.split('.').collect::<Vec<&str>>();
@@ -62,7 +62,17 @@ impl NixVersion {
         let minor = parts[1].parse::<u32>()?;
 
         let (patch, is_prerelease) = match parts.get(2) {
-            Some(s) => (s[..s.len() - 3].parse::<u32>()?, s.ends_with("pre")),
+            Some(s) => {
+                let length = s.len();
+                let mut offset = length;
+                if length > 3 {
+                    offset = offset.saturating_sub(3)
+                }
+                (
+                    s[..offset].parse::<u32>()?,      // patch
+                    length > 3 && s.ends_with("pre"), // is_prerelease
+                )
+            }
             None => (0, false),
         };
 
