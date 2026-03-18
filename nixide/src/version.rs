@@ -90,3 +90,39 @@ impl PartialOrd for NixVersion {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::NixVersion;
+
+    #[test]
+    fn test_parse_version() {
+        assert_eq!(
+            NixVersion::parse("2.26"),
+            Ok(NixVersion::new(2, 26, 0, false))
+        );
+        assert_eq!(
+            NixVersion::parse("2.33.0pre"),
+            Ok(NixVersion::new(2, 33, 0, true))
+        );
+        assert_eq!(
+            NixVersion::parse("2.33"),
+            Ok(NixVersion::new(2, 33, 0, false))
+        );
+        assert_eq!(
+            NixVersion::parse("2.33.1"),
+            Ok(NixVersion::new(2, 33, 1, false))
+        );
+    }
+
+    #[test]
+    fn test_version_ordering() {
+        // Pre-release versions should sort before stable
+        assert!(NixVersion::parse("2.33.0pre").unwrap() < NixVersion::parse("2.33").unwrap());
+        assert!(NixVersion::parse("2.33.0pre").unwrap() < NixVersion::parse("2.33.0").unwrap());
+
+        // Normal version ordering
+        assert!(NixVersion::parse("2.26").unwrap() < NixVersion::parse("2.33").unwrap());
+        assert!(NixVersion::parse("2.33").unwrap() < NixVersion::parse("2.33.1").unwrap());
+    }
+}
