@@ -19,7 +19,7 @@ impl FlakeSettings {
         Ok(FlakeSettings { inner })
     }
 
-    fn add_to_eval_state_builder(
+    pub(super) fn add_to_eval_state_builder(
         &self,
         builder: &mut EvalStateBuilder,
     ) -> Result<(), NixErrorCode> {
