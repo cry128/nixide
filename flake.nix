@@ -56,7 +56,6 @@
 
               cargo
               cargo-c
-              cargo-mommy
               cargo-llvm-cov
               cargo-nextest
 
@@ -106,12 +105,7 @@
               done
             '';
 
-            shellHook =
-              postConfigure
-              + ''
-                # the fox will love this one <3
-                alias cargo="CARGO_MOMMYS_MOODS=\"chill/ominous/thirsty/yikes\" ${pkgs.cargo}/bin/cargo mommy"
-              '';
+            shellHook = postConfigure;
 
             env = let
               inherit (llvmPackages) llvm libclang;
