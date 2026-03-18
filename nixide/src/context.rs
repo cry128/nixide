@@ -221,19 +221,6 @@ impl ErrorContext {
             .ok()
         }
     }
-
-    pub fn check_one_call_or_key_none<T, F>(&mut self, f: F) -> Result<Option<T>, NixErrorCode>
-    where
-        F: FnOnce(*mut sys::nix_c_context) -> T,
-    {
-        let t = f(unsafe { self.as_ptr() });
-        if unsafe { sys::nix_err_code(self.inner.as_ptr()) == sys::nix_err_NIX_ERR_KEY } {
-            self.clear();
-            return Ok(None);
-        }
-        self.pop()?;
-        Ok(Some(t))
-    }
 }
 
 impl Drop for ErrorContext {
