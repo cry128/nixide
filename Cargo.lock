@@ -191,6 +191,7 @@ name = "nixide"
 version = "0.1.0"
 dependencies = [
  "nixide-sys",
+ "serial_test",
 ]
 
 [[package]]

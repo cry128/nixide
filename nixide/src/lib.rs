@@ -1,14 +1,14 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+// #![warn(missing_docs)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod context;
+mod error;
+mod expr;
+mod store;
+mod util;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use context::Context;
+pub use error::NixError;
+pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
+pub use store::{Store, StorePath};
+
+pub use nixide_sys as sys;
