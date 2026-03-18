@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::Value;
 use crate::sys;
-use crate::{Context, NixError, Store};
+use crate::{ErrorContext, NixErrorCode, Store};
 
 /// Nix evaluation state for evaluating expressions.
 ///
@@ -14,7 +14,7 @@ pub struct EvalState {
     inner: NonNull<sys::EvalState>,
     #[allow(dead_code)]
     store: Arc<Store>,
-    pub(super) context: Arc<Context>,
+    pub(super) context: Arc<ErrorContext>,
 }
 
 impl EvalState {
@@ -22,7 +22,7 @@ impl EvalState {
     pub(super) fn new(
         inner: NonNull<sys::EvalState>,
         store: Arc<Store>,
-        context: Arc<Context>,
+        context: Arc<ErrorContext>,
     ) -> Self {
         Self {
             inner,
@@ -41,24 +41,24 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn eval_from_string(&self, expr: &str, path: &str) -> Result<Value<'_>, NixError> {
+    pub fn eval_from_string(&self, expr: &str, path: &str) -> Result<Value<'_>, NixErrorCode> {
         let expr_c =
-            NixError::from_nulerror(CString::new(expr), "nixide::EvalState::eval_from_string")?;
+            NixErrorCode::from_nulerror(CString::new(expr), "nixide::EvalState::eval_from_string")?;
         let path_c =
-            NixError::from_nulerror(CString::new(path), "nixide::EvalState::eval_from_string")?;
+            NixErrorCode::from_nulerror(CString::new(path), "nixide::EvalState::eval_from_string")?;
 
         // Allocate value for result
         // SAFETY: context and state are valid
         let value_ptr = unsafe { sys::nix_alloc_value(self.context.as_ptr(), self.inner.as_ptr()) };
         if value_ptr.is_null() {
-            return Err(NixError::NullPtr {
+            return Err(NixErrorCode::NullPtr {
                 location: "nix_alloc_value",
             });
         }
 
         // Evaluate expression
         // SAFETY: all pointers are valid
-        NixError::from(
+        NixErrorCode::from(
             unsafe {
                 sys::nix_expr_eval_from_string(
                     self.context.as_ptr(),
@@ -71,7 +71,7 @@ impl EvalState {
             "nix_expr_eval_from_string",
         )?;
 
-        let inner = NonNull::new(value_ptr).ok_or(NixError::NullPtr {
+        let inner = NonNull::new(value_ptr).ok_or(NixErrorCode::NullPtr {
             location: "nix_expr_eval_from_string",
         })?;
 
@@ -83,10 +83,10 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if value allocation fails.
-    pub fn alloc_value(&self) -> Result<Value<'_>, NixError> {
+    pub fn alloc_value(&self) -> Result<Value<'_>, NixErrorCode> {
         // SAFETY: context and state are valid
         let value_ptr = unsafe { sys::nix_alloc_value(self.context.as_ptr(), self.inner.as_ptr()) };
-        let inner = NonNull::new(value_ptr).ok_or(NixError::NullPtr {
+        let inner = NonNull::new(value_ptr).ok_or(NixErrorCode::NullPtr {
             location: "nix_alloc_value",
         })?;
 

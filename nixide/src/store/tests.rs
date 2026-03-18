@@ -5,14 +5,14 @@ use super::*;
 #[test]
 #[serial]
 fn test_store_opening() {
-    let ctx = Arc::new(Context::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
     let _store = Store::open(&ctx, None).expect("Failed to open store");
 }
 
 #[test]
 #[serial]
 fn test_store_path_parse() {
-    let ctx = Arc::new(Context::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
     let store = Store::open(&ctx, None).expect("Failed to open store");
 
     // Try parsing a well-formed store path
@@ -38,7 +38,7 @@ fn test_store_path_parse() {
 #[test]
 #[serial]
 fn test_store_path_clone() {
-    let ctx = Arc::new(Context::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
     let store = Store::open(&ctx, None).expect("Failed to open store");
 
     // Try to get a valid store path by parsing

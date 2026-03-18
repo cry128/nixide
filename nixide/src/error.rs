@@ -7,7 +7,7 @@ use crate::sys;
 /// Standard (nix_err) and some additional error codes
 /// produced by the libnix C API.
 #[derive(Debug)]
-pub enum NixError {
+pub enum NixErrorCode {
     /// A generic Nix error occurred.
     ///
     /// # Reason
@@ -95,24 +95,24 @@ pub enum NixError {
     },
 }
 
-impl NixError {
-    pub fn from(err_code: sys::nix_err, location: &'static str) -> Result<(), NixError> {
+impl NixErrorCode {
+    pub fn from(err_code: sys::nix_err, location: &'static str) -> Result<(), NixErrorCode> {
         #[allow(nonstandard_style)]
         match err_code {
             sys::nix_err_NIX_OK => Ok(()),
 
-            sys::nix_err_NIX_ERR_OVERFLOW => Err(NixError::Overflow { location }),
-            sys::nix_err_NIX_ERR_KEY => Err(NixError::KeyNotFound {
+            sys::nix_err_NIX_ERR_OVERFLOW => Err(NixErrorCode::Overflow { location }),
+            sys::nix_err_NIX_ERR_KEY => Err(NixErrorCode::KeyNotFound {
                 location,
                 key: None,
             }),
-            sys::nix_err_NIX_ERR_NIX_ERROR => Err(NixError::NixError { location }),
+            sys::nix_err_NIX_ERR_NIX_ERROR => Err(NixErrorCode::NixError { location }),
 
-            sys::nix_err_NIX_ERR_UNKNOWN => Err(NixError::Unknown {
+            sys::nix_err_NIX_ERR_UNKNOWN => Err(NixErrorCode::Unknown {
                 location,
                 reason: "Unknown error occurred".to_string(),
             }),
-            _ => Err(NixError::Undocumented { location, err_code }),
+            _ => Err(NixErrorCode::Undocumented { location, err_code }),
         }
     }
 
@@ -120,29 +120,29 @@ impl NixError {
         result: Result<T, NulError>,
         location: &'static str,
     ) -> Result<T, Self> {
-        result.or(Err(NixError::NulError { location }))
+        result.or(Err(NixErrorCode::NulError { location }))
     }
 
     pub fn new_nonnull<T>(ptr: *mut T, location: &'static str) -> Result<NonNull<T>, Self>
     where
         T: Sized,
     {
-        NonNull::new(ptr).ok_or(NixError::NullPtr { location })
+        NonNull::new(ptr).ok_or(NixErrorCode::NullPtr { location })
     }
 }
 
-impl std::error::Error for NixError {}
+impl std::error::Error for NixErrorCode {}
 
-impl Display for NixError {
+impl Display for NixErrorCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let msg = match self {
-            NixError::NixError { location } => {
+            NixErrorCode::NixError { location } => {
                 format!("[libnix] Generic error (at location `{location}`)")
             }
-            NixError::Overflow { location } => {
+            NixErrorCode::Overflow { location } => {
                 format!("[libnix] Overflow error (at location `{location}`)")
             }
-            NixError::KeyNotFound { location, key } => format!(
+            NixErrorCode::KeyNotFound { location, key } => format!(
                 "[libnix] Key not found {} (at location `{location}`)",
                 match key {
                     Some(key) => format!("`{key}`"),
@@ -150,26 +150,26 @@ impl Display for NixError {
                 }
             ),
 
-            NixError::Unknown { location, reason } => {
+            NixErrorCode::Unknown { location, reason } => {
                 format!("Unknown error \"{reason}\" (at location `{location}`)")
             }
-            NixError::Undocumented { location, err_code } => {
+            NixErrorCode::Undocumented { location, err_code } => {
                 format!(
                     "[libnix] An undocumented nix_err was returned with {err_code} (at location `{location}`)"
                 )
             }
 
-            NixError::NulError { location } => {
+            NixErrorCode::NulError { location } => {
                 format!("Nul error (at location `{location}`)")
             }
-            NixError::NullPtr { location } => {
+            NixErrorCode::NullPtr { location } => {
                 format!("[libnix] Null pointer (at location `{location}`)")
             }
 
-            NixError::InvalidArg { location, reason } => {
+            NixErrorCode::InvalidArg { location, reason } => {
                 format!("Invalid argument \"{reason}\" (at location `{location}`)")
             }
-            NixError::InvalidType {
+            NixErrorCode::InvalidType {
                 location,
                 expected,
                 got,

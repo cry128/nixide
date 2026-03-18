@@ -23,7 +23,7 @@ use std::ptr::NonNull;
 use std::result::Result;
 use std::sync::Arc;
 
-use super::{Context, NixError};
+use super::{ErrorContext, NixErrorCode};
 use crate::util::bindings::{wrap_libnix_pathbuf_callback, wrap_libnix_string_callback};
 use nixide_sys as sys;
 
@@ -32,7 +32,7 @@ use nixide_sys as sys;
 /// The store provides access to Nix packages, derivations, and store paths.
 pub struct Store {
     pub(crate) inner: NonNull<sys::Store>,
-    pub(crate) _context: Arc<Context>,
+    pub(crate) _context: Arc<ErrorContext>,
 }
 
 impl Store {
@@ -46,10 +46,10 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error if the store cannot be opened.
-    pub fn open(context: &Arc<Context>, uri: Option<&str>) -> Result<Self, NixError> {
+    pub fn open(context: &Arc<ErrorContext>, uri: Option<&str>) -> Result<Self, NixErrorCode> {
         let uri_cstring: CString;
         let uri_ptr = if let Some(uri) = uri {
-            uri_cstring = NixError::from_nulerror(CString::new(uri), "nixide::Store::open")?;
+            uri_cstring = NixErrorCode::from_nulerror(CString::new(uri), "nixide::Store::open")?;
             uri_cstring.as_ptr()
         } else {
             std::ptr::null()
@@ -59,7 +59,7 @@ impl Store {
         let store_ptr =
             unsafe { sys::nix_store_open(context.as_ptr(), uri_ptr, std::ptr::null_mut()) };
 
-        let inner = NonNull::new(store_ptr).ok_or(NixError::NullPtr {
+        let inner = NonNull::new(store_ptr).ok_or(NixErrorCode::NullPtr {
             location: "nix_store_open",
         })?;
 
@@ -99,9 +99,13 @@ impl Store {
         &self,
         path: &StorePath,
         callback: fn(&str, &StorePath),
-    ) -> Result<Vec<(String, StorePath)>, NixError> {
+    ) -> Result<Vec<(String, StorePath)>, NixErrorCode> {
         // Type alias for our userdata: (outputs vector, context)
-        type Userdata = (Vec<(String, StorePath)>, Arc<Context>, fn(&str, &StorePath));
+        type Userdata = (
+            Vec<(String, StorePath)>,
+            Arc<ErrorContext>,
+            fn(&str, &StorePath),
+        );
 
         // Callback function that will be called for each realized output
         unsafe extern "C" fn realise_callback(
@@ -157,7 +161,7 @@ impl Store {
             )
         };
 
-        NixError::from(err, "nix_store_realise")?;
+        NixErrorCode::from(err, "nix_store_realise")?;
 
         // Return the collected outputs
         Ok(userdata.0)
@@ -187,14 +191,14 @@ impl Store {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn store_path(&self, path: &str) -> Result<StorePath, NixError> {
+    pub fn store_path(&self, path: &str) -> Result<StorePath, NixErrorCode> {
         StorePath::parse(&self._context, self, path)
     }
 
     /// Get the version of a Nix store
     ///
     /// If the store doesn't have a version (like the dummy store), returns None
-    pub fn version(&self) -> Result<String, NixError> {
+    pub fn version(&self) -> Result<String, NixErrorCode> {
         wrap_libnix_string_callback("nix_store_get_version", |callback, user_data| unsafe {
             sys::nix_store_get_version(
                 self._context.as_ptr(),
@@ -206,7 +210,7 @@ impl Store {
     }
 
     /// Get the URI of a Nix store
-    pub fn uri(&self) -> Result<String, NixError> {
+    pub fn uri(&self) -> Result<String, NixErrorCode> {
         wrap_libnix_string_callback("nix_store_get_uri", |callback, user_data| unsafe {
             sys::nix_store_get_uri(
                 self._context.as_ptr(),
@@ -217,7 +221,7 @@ impl Store {
         })
     }
 
-    pub fn store_dir(&self) -> Result<PathBuf, NixError> {
+    pub fn store_dir(&self) -> Result<PathBuf, NixErrorCode> {
         wrap_libnix_pathbuf_callback("nix_store_get_storedir", |callback, user_data| unsafe {
             sys::nix_store_get_storedir(
                 self._context.as_ptr(),
@@ -232,7 +236,7 @@ impl Store {
         &self,
         dst_store: &Store,
         store_path: &StorePath,
-    ) -> Result<(), NixError> {
+    ) -> Result<(), NixErrorCode> {
         let err = unsafe {
             sys::nix_store_copy_closure(
                 self._context.as_ptr(),
@@ -241,14 +245,14 @@ impl Store {
                 store_path.inner.as_ptr(),
             )
         };
-        NixError::from(err, "nix_store_copy_closure")
+        NixErrorCode::from(err, "nix_store_copy_closure")
     }
 
     pub fn copy_closure_from(
         &self,
         src_store: &Store,
         store_path: &StorePath,
-    ) -> Result<(), NixError> {
+    ) -> Result<(), NixErrorCode> {
         let err = unsafe {
             sys::nix_store_copy_closure(
                 self._context.as_ptr(),
@@ -257,7 +261,7 @@ impl Store {
                 store_path.inner.as_ptr(),
             )
         };
-        NixError::from(err, "nix_store_copy_closure")
+        NixErrorCode::from(err, "nix_store_copy_closure")
     }
 }
 

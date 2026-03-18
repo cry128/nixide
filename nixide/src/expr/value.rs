@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 
 use super::{EvalState, ValueType};
 use crate::sys;
-use crate::NixError;
+use crate::NixErrorCode;
 
 /// A Nix value
 ///
@@ -22,8 +22,8 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn force(&mut self) -> Result<(), NixError> {
-        NixError::from(
+    pub fn force(&mut self) -> Result<(), NixErrorCode> {
+        NixErrorCode::from(
             // SAFETY: context, state, and value are valid
             unsafe {
                 sys::nix_value_force(
@@ -43,8 +43,8 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn force_deep(&mut self) -> Result<(), NixError> {
-        NixError::from(
+    pub fn force_deep(&mut self) -> Result<(), NixErrorCode> {
+        NixErrorCode::from(
             // SAFETY: context, state, and value are valid
             unsafe {
                 sys::nix_value_force_deep(
@@ -70,9 +70,9 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if the value is not an integer.
-    pub fn as_int(&self) -> Result<i64, NixError> {
+    pub fn as_int(&self) -> Result<i64, NixErrorCode> {
         if self.value_type() != ValueType::Int {
-            return Err(NixError::InvalidType {
+            return Err(NixErrorCode::InvalidType {
                 location: "nixide::Value::as_int",
                 expected: "int",
                 got: self.value_type().to_string(),
@@ -90,9 +90,9 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if the value is not a float.
-    pub fn as_float(&self) -> Result<f64, NixError> {
+    pub fn as_float(&self) -> Result<f64, NixErrorCode> {
         if self.value_type() != ValueType::Float {
-            return Err(NixError::InvalidType {
+            return Err(NixErrorCode::InvalidType {
                 location: "nixide::Value::as_float",
                 expected: "float",
                 got: self.value_type().to_string(),
@@ -111,9 +111,9 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if the value is not a boolean.
-    pub fn as_bool(&self) -> Result<bool, NixError> {
+    pub fn as_bool(&self) -> Result<bool, NixErrorCode> {
         if self.value_type() != ValueType::Bool {
-            return Err(NixError::InvalidType {
+            return Err(NixErrorCode::InvalidType {
                 location: "nixide::Value::as_bool",
                 expected: "bool",
                 got: self.value_type().to_string(),
@@ -131,9 +131,9 @@ impl Value<'_> {
     /// # Errors
     ///
     /// Returns an error if the value is not a string.
-    pub fn as_string(&self) -> Result<String, NixError> {
+    pub fn as_string(&self) -> Result<String, NixErrorCode> {
         if self.value_type() != ValueType::String {
-            return Err(NixError::InvalidType {
+            return Err(NixErrorCode::InvalidType {
                 location: "nixide::Value::as_string",
                 expected: "string",
                 got: self.value_type().to_string(),
@@ -152,7 +152,7 @@ impl Value<'_> {
         };
 
         if realised_str.is_null() {
-            return Err(NixError::NullPtr {
+            return Err(NixErrorCode::NullPtr {
                 location: "nix_string_realise",
             });
         }
@@ -165,7 +165,7 @@ impl Value<'_> {
             unsafe {
                 sys::nix_realised_string_free(realised_str);
             }
-            return Err(NixError::NullPtr {
+            return Err(NixErrorCode::NullPtr {
                 location: "nix_realised_string_free",
             });
         }
@@ -173,7 +173,7 @@ impl Value<'_> {
         // SAFETY: buffer_start is non-null and buffer_size gives us the length
         let bytes = unsafe { std::slice::from_raw_parts(buffer_start.cast::<u8>(), buffer_size) };
         let string = std::str::from_utf8(bytes)
-            .map_err(|_| NixError::Unknown {
+            .map_err(|_| NixErrorCode::Unknown {
                 location: "nixide::Value::as_string",
                 reason: "Invalid UTF-8 in string".to_string(),
             })?
@@ -206,7 +206,7 @@ impl Value<'_> {
     ///
     /// Returns an error if the value cannot be converted to a string
     /// representation.
-    pub fn to_nix_string(&self) -> Result<String, NixError> {
+    pub fn to_nix_string(&self) -> Result<String, NixErrorCode> {
         match self.value_type() {
             ValueType::Int => Ok(self.as_int()?.to_string()),
             ValueType::Float => Ok(self.as_float()?.to_string()),
