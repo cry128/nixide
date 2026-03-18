@@ -1,4 +1,27 @@
-use std::ffi::{c_char, c_uint, CStr, CString};
+// XXX: TODO: create wrappers methods to access more than just `info->msg()`
+// struct ErrorInfo
+// {
+//     Verbosity level;
+//     HintFmt msg;
+//     std::shared_ptr<const Pos> pos;
+//     std::list<Trace> traces;
+//     /**
+//      * Some messages are generated directly by expressions; notably `builtins.warn`, `abort`, `throw`.
+//      * These may be rendered differently, so that users can distinguish them.
+//      */
+//     bool isFromExpr = false;
+
+//     /**
+//      * Exit status.
+//      */
+//     unsigned int status = 1;
+
+//     Suggestions suggestions;
+
+//     static std::optional<std::string> programName;
+// };
+
+use std::ffi::{c_char, CStr};
 use std::ptr::{null_mut, NonNull};
 
 use crate::error::NixErrorCode;
@@ -8,11 +31,12 @@ use crate::util::bindings::wrap_libnix_string_callback;
 // XXX: TODO: change this to a `Result<T, NixError>`
 type NixResult<T> = Result<T, NixErrorCode>;
 
+#[derive(Debug, Clone)]
 pub struct NixError {
-    pub code: NixErrorCode,
+    pub err: NixErrorCode,
     pub name: String,
-    pub msg: Option<String>,
-    pub info_msg: Option<String>,
+    pub msg: String,
+    pub info_msg: String,
 }
 
 /// This object stores error state.
@@ -101,26 +125,37 @@ impl ErrorContext {
     /// Check the error code and return an error if it's not `NIX_OK`.
     ///
     /// We recommend to use `check_call!` if possible.
-    pub fn peak(&self) -> Result<(), NixErrorCode> {
+    pub fn peak(&self) -> Option<NixError> {
         // NixError::from( unsafe { sys::nix_err_code(self.as_ptr())}, "");
 
-        let err = unsafe { sys::nix_err_code(self.inner.as_ptr()) };
-        if err != sys::nix_err_NIX_OK {
-            // msgp is a borrowed pointer (pointing into the context), so we don't need to free it
-            let msgp = unsafe { sys::nix_err_msg(null_mut(), self.inner.as_ptr(), null_mut()) };
-            // Turn the i8 pointer into a Rust string by copying
-            let msg: &str = unsafe { core::ffi::CStr::from_ptr(msgp).to_str()? };
-            bail!("{}", msg);
+        // let err = unsafe { sys::nix_err_code(self.inner.as_ptr()) };
+        // if err != sys::nix_err_NIX_OK {
+        //     // msgp is a borrowed pointer (pointing into the context), so we don't need to free it
+        //     let msgp = unsafe { sys::nix_err_msg(null_mut(), self.inner.as_ptr(), null_mut()) };
+        //     // Turn the i8 pointer into a Rust string by copying
+        //     let msg: &str = unsafe { core::ffi::CStr::from_ptr(msgp).to_str()? };
+        //     bail!("{}", msg);
+        // }
+        // Ok(())
+
+        let result = self.get_code();
+        match result {
+            Ok(()) => None,
+            Err(err) => Some(NixError {
+                err,
+                name: self.get_name()?,
+                msg: self.get_msg()?,
+                info_msg: self.get_info_msg()?,
+            }),
         }
-        Ok(())
     }
 
-    pub fn pop(&mut self) -> Result<(), NixErrorCode> {
-        let result = self.peak();
-        if result.is_err() {
+    pub fn pop(&mut self) -> Option<NixError> {
+        let error = self.peak();
+        if error.is_some() {
             self.clear();
         }
-        result
+        error
     }
 
     pub fn clear(&mut self) {
@@ -137,19 +172,19 @@ impl ErrorContext {
         NixErrorCode::from(unsafe { sys::nix_err_code(self.as_ptr()) }, "nix_err_code")
     }
 
-    pub(crate) fn get_name(&self, result: NixResult<()>) -> Option<String> {
-        match result {
-            Err(_) => unsafe {
-                let ctx = null_mut();
-                wrap_libnix_string_callback("nix_err_name", |callback, user_data| {
-                    sys::nix_err_name(ctx, self.as_ptr(), Some(callback), user_data)
-                })
-                .ok()
-            },
-            Ok(_) => None,
+    /// Returns None if no [self.code] is [sys::nix_err_NIX_OK].
+    pub(crate) fn get_name(&self) -> Option<String> {
+        unsafe {
+            let ctx = null_mut();
+            // NOTE: an Err here only occurs when "Last error was not a nix error"
+            wrap_libnix_string_callback("nix_err_name", |callback, user_data| {
+                sys::nix_err_name(ctx, self.as_ptr(), Some(callback), user_data)
+            })
+            .ok()
         }
     }
 
+    /// Returns None if no [self.code] is [sys::nix_err_NIX_OK].
     /// # Note
     /// On failure [sys::nix_err_name] does the following if the error
     /// has the error code [sys::nix_err_NIX_OK]:
@@ -159,26 +194,33 @@ impl ErrorContext {
     /// ```
     /// Hence we can just test whether the returned pointer is a `NULL` pointer,
     /// and avoid passing in a [sys::nix_c_context] struct.
-    pub(crate) fn get_msg(&self, result: NixResult<()>) -> Option<String> {
-        match result {
-            Err(_) => unsafe {
-                let ctx = null_mut();
-                let msg_ptr: *const c_char = sys::nix_err_msg(ctx, self.as_ptr(), null_mut());
+    pub(crate) fn get_msg(&self) -> Option<String> {
+        unsafe {
+            let ctx = null_mut();
+            let msg_ptr: *const c_char = sys::nix_err_msg(ctx, self.as_ptr(), null_mut());
 
-                if msg_ptr.is_null() {
-                    return None;
-                }
+            if msg_ptr.is_null() {
+                return None;
+            }
 
-                match CStr::from_ptr(msg_ptr).to_str() {
-                    Ok(msg_str) => Some(msg_str.to_string()),
-                    Err(_) => None,
-                }
-            },
-            Ok(_) => None,
+            match CStr::from_ptr(msg_ptr).to_str() {
+                Ok(msg_str) => Some(msg_str.to_string()),
+                Err(_) => None,
+            }
         }
     }
 
-    pub(crate) fn get_info_msg(&self) -> Option<String> {}
+    /// Returns None if no [self.code] is [sys::nix_err_NIX_OK].
+    pub(crate) fn get_info_msg(&self) -> Option<String> {
+        unsafe {
+            let ctx = null_mut();
+            // NOTE: an Err here only occurs when "Last error was not a nix error"
+            wrap_libnix_string_callback("nix_err_name", |callback, user_data| {
+                sys::nix_err_info_msg(ctx, self.as_ptr(), Some(callback), user_data)
+            })
+            .ok()
+        }
+    }
 
     pub fn check_one_call_or_key_none<T, F>(&mut self, f: F) -> Result<Option<T>, NixErrorCode>
     where

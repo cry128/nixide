@@ -6,7 +6,7 @@ use crate::sys;
 
 /// Standard (nix_err) and some additional error codes
 /// produced by the libnix C API.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NixErrorCode {
     /// A generic Nix error occurred.
     ///
