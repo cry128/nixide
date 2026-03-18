@@ -139,11 +139,12 @@ impl ErrorContext {
 
     pub(crate) fn get_name(&self, result: NixResult<()>) -> Option<String> {
         match result {
-            Err(code) => unsafe {
+            Err(_) => unsafe {
                 let ctx = null_mut();
                 wrap_libnix_string_callback("nix_err_name", |callback, user_data| {
                     sys::nix_err_name(ctx, self.as_ptr(), Some(callback), user_data)
                 })
+                .ok()
             },
             Ok(_) => None,
         }
