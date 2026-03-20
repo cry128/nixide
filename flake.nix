@@ -1,5 +1,5 @@
 {
-  description = "Wire on your TTYs just feels better!";
+  description = "rust wrapper for libnix";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
