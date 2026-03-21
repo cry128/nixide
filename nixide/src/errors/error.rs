@@ -94,7 +94,7 @@ impl NixideError {
     /// # Panics
     ///
     /// This function will panic in the event that `context.get_err() == Some(err) && err == sys::nix_err_NIX_OK`
-    /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::ni_err_NIX_OK`.
+    /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::nix_err_NIX_OK`.
     ///
     ///
     /// This function will panic in the event that `value != sys::nix_err_NIX_OK`
@@ -103,7 +103,6 @@ impl NixideError {
         let inner = context.get_err()?;
         let msg = context.get_msg()?;
 
-        #[allow(nonstandard_style)]
         let err = match inner {
             sys::nix_err_NIX_OK => unreachable!(),
 

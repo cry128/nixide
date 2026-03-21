@@ -3,6 +3,7 @@
 pub(crate) mod errors;
 mod expr;
 mod flake;
+mod stdext;
 mod store;
 pub(crate) mod util;
 mod verbosity;

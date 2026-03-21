@@ -24,11 +24,11 @@
 use std::ffi::c_uint;
 use std::ptr::NonNull;
 
-use super::NixideError;
+use super::{NixError, NixideError, NixideResult};
 use crate::sys;
 use crate::util::bindings::wrap_libnix_string_callback;
 use crate::util::wrappers::AsInnerPtr;
-use crate::util::CCharPtrNixExt;
+use crate::util::{panic_issue_call_failed, CCharPtrNixExt};
 
 /// This object stores error state.
 ///
@@ -71,6 +71,34 @@ impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
     }
 }
 
+impl Into<NixideResult<()>> for &ErrorContext {
+    fn into(self) -> NixideResult<()> {
+        let inner = self.get_err().ok_?;
+        let msg = self.get_msg()?;
+
+        let err = match inner {
+            sys::nix_err_NIX_OK => unreachable!(),
+
+            sys::nix_err_NIX_ERR_OVERFLOW => NixError::Overflow,
+            sys::nix_err_NIX_ERR_KEY => NixError::KeyNotFound(None),
+            sys::nix_err_NIX_ERR_NIX_ERROR => NixError::ExprEval {
+                name: self
+                    .get_nix_err_name()
+                    .unwrap_or_else(|| panic_issue_call_failed!()),
+
+                info_msg: self
+                    .get_nix_err_info_msg()
+                    .unwrap_or_else(|| panic_issue_call_failed!()),
+            },
+
+            sys::nix_err_NIX_ERR_UNKNOWN => NixError::Unknown,
+            err => NixError::Undocumented(err),
+        };
+
+        Some(new_nixide_error!(NixError, inner, err, msg))
+    }
+}
+
 impl ErrorContext {
     /// Create a new error context.
     ///
@@ -103,18 +131,19 @@ impl ErrorContext {
     }
 
     /// Check the error code and return an error if it's not `NIX_OK`.
-    pub fn peak(&self) -> Option<NixideError> {
-        NixideError::from_error_context(self)
+    pub fn peak(&self) -> NixideResult<()> {
+        match self.into() {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
     ///
     /// Equivalent to running `self.peak()` then `self.clear()`
-    pub fn pop(&mut self) -> Option<NixideError> {
-        self.get_err().and_then(|_| {
-            let error = self.peak();
-            self.clear();
-            error
-        })
+    pub fn pop(&mut self) -> NixideResult<()> {
+        let error = self.peak();
+        self.clear();
+        error
     }
 
     /// # Nix C++ API Internals
@@ -151,10 +180,9 @@ impl ErrorContext {
     pub(super) fn get_err(&self) -> Option<sys::nix_err> {
         let err = unsafe { sys::nix_err_code(self.as_ptr()) };
 
-        if err == sys::nix_err_NIX_OK {
-            None
-        } else {
-            Some(err)
+        match err {
+            sys::nix_err_NIX_OK => None,
+            _ => Some(err),
         }
     }
 
