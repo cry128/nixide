@@ -1,10 +1,18 @@
+use std::ptr::NonNull;
+
+use super::{FetchersSettings, FlakeLockFlags, FlakeReference, FlakeSettings};
+use crate::errors::{new_nixide_error, ErrorContext};
+use crate::sys;
+use crate::util::wrappers::AsInnerPtr;
+use crate::{EvalState, NixideError, Value};
+
 pub struct LockedFlake {
-    pub(crate) ptr: NonNull<raw::locked_flake>,
+    pub(crate) ptr: NonNull<sys::nix_locked_flake>,
 }
 impl Drop for LockedFlake {
     fn drop(&mut self) {
         unsafe {
-            raw::locked_flake_free(self.ptr.as_ptr());
+            sys::nix_locked_flake_free(self.ptr.as_ptr());
         }
     }
 }
@@ -15,20 +23,24 @@ impl LockedFlake {
         eval_state: &EvalState,
         flags: &FlakeLockFlags,
         flake_ref: &FlakeReference,
-    ) -> Result<LockedFlake> {
-        let mut ctx = Context::new();
-        let ptr = unsafe {
-            context::check_call!(raw::flake_lock(
-                &mut ctx,
-                fetch_settings.raw_ptr(),
-                flake_settings.ptr,
-                eval_state.raw_ptr(),
-                flags.ptr,
-                flake_ref.ptr.as_ptr()
-            ))
-        }?;
-        let ptr = NonNull::new(ptr).context("flake_lock unexpectedly returned null")?;
-        Ok(LockedFlake { ptr })
+    ) -> Result<LockedFlake, NixideError> {
+        let ctx = ErrorContext::new();
+
+        let ptr = NonNull::new(unsafe {
+            sys::nix_flake_lock(
+                ctx.as_ptr(),
+                fetch_settings.as_ptr(),
+                flake_settings.as_ptr(),
+                eval_state.as_ptr(),
+                flags.as_ptr(),
+                flake_ref.as_ptr(),
+            )
+        });
+
+        match ptr {
+            Some(ptr) => Ok(LockedFlake { ptr }),
+            None => Err(new_nixide_error!(NullPtr)),
+        }
     }
 
     /// Returns the outputs of the flake - the result of calling the `outputs` attribute.
@@ -36,24 +48,27 @@ impl LockedFlake {
         &self,
         flake_settings: &FlakeSettings,
         eval_state: &mut EvalState,
-    ) -> Result<nix_bindings_expr::value::Value> {
-        let mut ctx = Context::new();
-        unsafe {
-            let r = context::check_call!(raw::locked_flake_get_output_attrs(
-                &mut ctx,
-                flake_settings.ptr,
-                eval_state.raw_ptr(),
-                self.ptr.as_ptr()
-            ))?;
-            Ok(nix_bindings_expr::value::__private::raw_value_new(r))
-        }
+    ) -> Result<Value, NixideError> {
+        let ctx = ErrorContext::new();
+
+        let r = unsafe {
+            sys::nix_locked_flake_get_output_attrs(
+                ctx.as_ptr(),
+                flake_settings.as_ptr(),
+                eval_state.as_ptr(),
+                self.ptr.as_ptr(),
+            )
+        };
+        Ok(nix_bindings_expr::value::__private::raw_value_new(r))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use nix_bindings_expr::eval_state::{gc_register_my_thread, EvalStateBuilder};
-    use nix_bindings_store::store::Store;
+    // use nix_bindings_expr::eval_state::{gc_register_my_thread, EvalStateBuilder};
+
+    use crate::flake::{FlakeLockMode, FlakeReferenceParseFlags};
+    use crate::{EvalStateBuilder, Store};
 
     use super::*;
     use std::sync::Once;
@@ -248,7 +263,9 @@ mod tests {
 
         // Step 1: Do not update (check), fails
 
-        flake_lock_flags.set_mode_check().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::Check)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -265,7 +282,9 @@ mod tests {
         };
 
         // Step 2: Update but do not write, succeeds
-        flake_lock_flags.set_mode_virtual().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::Virtual)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -287,7 +306,9 @@ mod tests {
 
         // Step 3: The lock was not written, so Step 1 would fail again
 
-        flake_lock_flags.set_mode_check().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::Check)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -307,7 +328,9 @@ mod tests {
 
         // Step 4: Update and write, succeeds
 
-        flake_lock_flags.set_mode_write_as_needed().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::WriteAsNeeded)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -327,7 +350,9 @@ mod tests {
 
         // Step 5: Lock was written, so Step 1 succeeds
 
-        flake_lock_flags.set_mode_check().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::Check)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -348,7 +373,9 @@ mod tests {
         // Step 6: Lock with override, do not write
 
         // This shouldn't matter; write_as_needed will be overridden
-        flake_lock_flags.set_mode_write_as_needed().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::WriteAsNeeded)
+            .unwrap();
 
         let (flake_ref_c, fragment) = FlakeReference::parse_with_fragment(
             &fetchers_settings,
@@ -359,9 +386,7 @@ mod tests {
         .unwrap();
         assert_eq!(fragment, "");
 
-        flake_lock_flags
-            .add_input_override("b", &flake_ref_c)
-            .unwrap();
+        flake_lock_flags.override_input("b", &flake_ref_c).unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,
@@ -384,7 +409,9 @@ mod tests {
 
         // Step 7: Override was not written; lock still points to b
 
-        flake_lock_flags.set_mode_check().unwrap();
+        flake_lock_flags
+            .set_lock_mode(&FlakeLockMode::Check)
+            .unwrap();
 
         let locked_flake = LockedFlake::lock(
             &fetchers_settings,

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::sys;
+use crate::{sys, util::wrappers::FromC};
 
 /// Nix value types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,8 +29,8 @@ pub enum ValueType {
     External,
 }
 
-impl ValueType {
-    pub(super) fn from_c(value_type: sys::ValueType) -> Self {
+impl FromC<sys::ValueType> for ValueType {
+    unsafe fn from_c(value_type: sys::ValueType) -> Self {
         match value_type {
             sys::ValueType_NIX_TYPE_THUNK => ValueType::Thunk,
             sys::ValueType_NIX_TYPE_INT => ValueType::Int,
@@ -43,7 +43,7 @@ impl ValueType {
             sys::ValueType_NIX_TYPE_LIST => ValueType::List,
             sys::ValueType_NIX_TYPE_FUNCTION => ValueType::Function,
             sys::ValueType_NIX_TYPE_EXTERNAL => ValueType::External,
-            _ => ValueType::Thunk, // fallback (TODO: is this ok?)
+            _ => unreachable!("call to `nixide::ValueType::from_c` failed: please open an issue on https://github.com/cry128/nixide"),
         }
     }
 }

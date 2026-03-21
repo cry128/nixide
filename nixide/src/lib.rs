@@ -1,16 +1,14 @@
 // #![warn(missing_docs)]
 
-mod context;
-mod error;
+pub(crate) mod errors;
 mod expr;
 mod flake;
 mod store;
-pub mod util;
+pub(crate) mod util;
 mod verbosity;
 mod version;
 
-pub use context::ErrorContext;
-pub use error::NixErrorCode;
+pub use errors::{NixError, NixideError, NixideResult};
 pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
 pub use store::{Store, StorePath};
 pub use verbosity::NixVerbosity;

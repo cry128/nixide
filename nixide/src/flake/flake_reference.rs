@@ -1,14 +1,30 @@
+use std::os::raw::c_char;
+use std::ptr::{null_mut, NonNull};
+
+use super::{FetchersSettings, FlakeReferenceParseFlags, FlakeSettings};
+use crate::errors::new_nixide_error;
+use crate::sys;
+use crate::util::bindings::wrap_libnix_string_callback;
+use crate::util::wrappers::AsInnerPtr;
+use crate::NixideError;
+
 pub struct FlakeReference {
-    pub(crate) ptr: NonNull<raw::flake_reference>,
+    pub(crate) ptr: NonNull<sys::nix_flake_reference>,
 }
+
 impl Drop for FlakeReference {
     fn drop(&mut self) {
         unsafe {
-            raw::flake_reference_free(self.ptr.as_ptr());
+            sys::nix_flake_reference_free(self.ptr.as_ptr());
         }
     }
 }
+
 impl FlakeReference {
+    pub fn as_ptr(&self) -> *mut sys::nix_flake_reference {
+        self.ptr.as_ptr()
+    }
+
     /// Parse a flake reference from a string.
     /// The string must be a valid flake reference, such as `github:owner/repo`.
     /// It may also be suffixed with a `#` and a fragment, such as `github:owner/repo#something`,
@@ -18,26 +34,25 @@ impl FlakeReference {
         flake_settings: &FlakeSettings,
         flags: &FlakeReferenceParseFlags,
         reference: &str,
-    ) -> Result<(FlakeReference, String)> {
-        let mut ctx = Context::new();
-        let mut r = result_string_init!();
-        let mut ptr: *mut raw::flake_reference = std::ptr::null_mut();
-        unsafe {
-            context::check_call!(raw::flake_reference_and_fragment_from_string(
-                &mut ctx,
-                fetch_settings.raw_ptr(),
-                flake_settings.ptr,
-                flags.ptr.as_ptr(),
+    ) -> Result<(FlakeReference, String), NixideError> {
+        let mut ptr: *mut sys::nix_flake_reference = null_mut();
+        let result = wrap_libnix_string_callback(|ctx, callback, user_data| unsafe {
+            sys::nix_flake_reference_and_fragment_from_string(
+                ctx.as_ptr(),
+                fetch_settings.as_ptr(),
+                flake_settings.as_ptr(),
+                flags.as_ptr(),
                 reference.as_ptr() as *const c_char,
                 reference.len(),
-                // pointer to ptr
                 &mut ptr,
-                Some(callback_get_result_string),
-                callback_get_result_string_data(&mut r)
-            ))
-        }?;
-        let ptr = NonNull::new(ptr)
-            .context("flake_reference_and_fragment_from_string unexpectedly returned null")?;
-        Ok((FlakeReference { ptr }, r?))
+                Some(callback),
+                user_data,
+            )
+        });
+
+        match NonNull::new(ptr) {
+            Some(ptr) => result.map(|s| (FlakeReference { ptr }, s)),
+            None => Err(new_nixide_error!(NullPtr)),
+        }
     }
 }

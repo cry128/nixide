@@ -4,8 +4,11 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 
 use super::Store;
+use crate::errors::{new_nixide_error, ErrorContext};
 use crate::util::bindings::{wrap_libnix_pathbuf_callback, wrap_libnix_string_callback};
-use crate::{ErrorContext, NixErrorCode};
+use crate::util::wrappers::AsInnerPtr;
+use crate::NixideError;
+
 use nixide_sys::{self as sys, nix_err_NIX_OK};
 
 /// A path in the Nix store.
@@ -13,7 +16,6 @@ use nixide_sys::{self as sys, nix_err_NIX_OK};
 /// Represents a store path that can be realized, queried, or manipulated.
 pub struct StorePath {
     pub(crate) inner: NonNull<sys::StorePath>,
-    pub(crate) _context: Arc<ErrorContext>,
 }
 
 impl StorePath {
@@ -21,36 +23,31 @@ impl StorePath {
     ///
     /// # Arguments
     ///
-    /// * `context` - The Nix context
     /// * `store` - The store containing the path
     /// * `path` - The store path string (e.g., "/nix/store/...")
     ///
     /// # Errors
     ///
     /// Returns an error if the path cannot be parsed.
-    pub fn parse(
-        context: &Arc<ErrorContext>,
-        store: &Store,
-        path: &str,
-    ) -> Result<Self, NixErrorCode> {
-        let path_cstring = CString::new(path).or(Err(NixErrorCode::InvalidArg {
-            location: "nixide::StorePath::parse",
-            reason: "`path` contains NUL char",
-        }))?;
+    pub fn parse(store: &Store, path: &str) -> Result<Self, NixideError> {
+        let path_cstring = CString::new(path).or(Err(new_nixide_error!(
+            InvalidArg,
+            "path",
+            "contains a `\\0` (NUL) byte".to_owned()
+        )))?;
 
-        // SAFETY: context, store, and path_cstring are valid
+        let ctx = ErrorContext::new();
         let path_ptr = unsafe {
-            sys::nix_store_parse_path(context.as_ptr(), store.as_ptr(), path_cstring.as_ptr())
+            sys::nix_store_parse_path(ctx.as_ptr(), store.as_ptr(), path_cstring.as_ptr())
         };
 
-        let inner = NonNull::new(path_ptr).ok_or(NixErrorCode::NullPtr {
-            location: "nix_store_parse_path",
-        })?;
-
-        Ok(Self {
-            inner,
-            _context: Arc::clone(context),
-        })
+        match ctx.peak() {
+            Some(err) => Err(err),
+            None => match NonNull::new(path_ptr) {
+                Some(inner) => Ok(Self { inner }),
+                None => Err(new_nixide_error!(NullPtr)),
+            },
+        }
     }
 
     /// Get the name component of the store path.
@@ -61,8 +58,9 @@ impl StorePath {
     /// # Errors
     ///
     /// Returns an error if the name cannot be retrieved.
-    pub fn name(&self) -> Result<String, NixErrorCode> {
-        wrap_libnix_string_callback("nix_store_path_name", |callback, user_data| unsafe {
+    ///
+    pub fn name(&self) -> Result<String, NixideError> {
+        wrap_libnix_string_callback(|_, callback, user_data| unsafe {
             sys::nix_store_path_name(self.inner.as_ptr(), Some(callback), user_data);
 
             // NOTE: nix_store_path_name doesn't return nix_err, so we force it to return successfully
@@ -91,15 +89,21 @@ impl StorePath {
     ///
     /// * `store` - The store containing the path
     ///
-    pub fn real_path(&self, store: &Store) -> Result<PathBuf, NixErrorCode> {
-        wrap_libnix_pathbuf_callback("nix_store_real_path", |callback, user_data| unsafe {
-            sys::nix_store_real_path(
-                self._context.as_ptr(),
+    pub fn real_path(&self, store: &Store) -> Result<PathBuf, NixideError> {
+        wrap_libnix_pathbuf_callback(|ctx, callback, user_data| unsafe {
+            let err_code = sys::nix_store_real_path(
+                ctx.as_ptr(),
                 store.inner.as_ptr(),
-                self.inner.as_ptr(),
+                self.as_ptr(),
                 Some(callback),
                 user_data,
-            )
+            );
+            match ctx.pop() {
+                Some(err) => Err(err),
+                None => Ok(()),
+            }
+
+            err_code
         })
     }
 
@@ -111,13 +115,12 @@ impl StorePath {
     /// * `store` - The store containing the path
     ///
     pub fn is_valid(&self, store: &Store) -> bool {
+        let ctx = ErrorContext::new();
         unsafe {
-            sys::nix_store_is_valid_path(
-                self._context.as_ptr(),
-                store.inner.as_ptr(),
-                self.inner.as_ptr(),
-            )
+            sys::nix_store_is_valid_path(ctx.as_ptr(), store.inner.as_ptr(), self.inner.as_ptr())
         }
+
+        ctx
     }
 
     /// Get the raw store path pointer.

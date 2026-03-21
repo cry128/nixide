@@ -3,19 +3,13 @@ use std::sync::Arc;
 use serial_test::serial;
 
 use super::{EvalStateBuilder, ValueType};
-use crate::{ErrorContext, Store};
-
-#[test]
-#[serial]
-fn test_context_creation() {
-    let _ctx = ErrorContext::new().expect("Failed to create context");
-    // Context should be dropped automatically
-}
+use crate::errors::ErrorContext;
+use crate::Store;
 
 #[test]
 #[serial]
 fn test_eval_state_builder() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new());
     let store = Arc::new(Store::open(&ctx, None).expect("Failed to open store"));
     let _state = EvalStateBuilder::new(&store)
         .expect("Failed to create builder")
@@ -27,7 +21,7 @@ fn test_eval_state_builder() {
 #[test]
 #[serial]
 fn test_simple_evaluation() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new());
     let store = Arc::new(Store::open(&ctx, None).expect("Failed to open store"));
     let state = EvalStateBuilder::new(&store)
         .expect("Failed to create builder")
@@ -45,7 +39,7 @@ fn test_simple_evaluation() {
 #[test]
 #[serial]
 fn test_value_types() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new());
     let store = Arc::new(Store::open(&ctx, None).expect("Failed to open store"));
     let state = EvalStateBuilder::new(&store)
         .expect("Failed to create builder")
@@ -77,7 +71,7 @@ fn test_value_types() {
 #[test]
 #[serial]
 fn test_value_formatting() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
+    let ctx = Arc::new(ErrorContext::new());
     let store = Arc::new(Store::open(&ctx, None).expect("Failed to open store"));
     let state = EvalStateBuilder::new(&store)
         .expect("Failed to create builder")

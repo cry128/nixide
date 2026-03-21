@@ -161,7 +161,7 @@ impl Store {
             )
         };
 
-        NixErrorCode::from(err, "nix_store_realise")?;
+        NixErrorCode::result_from(err, "nix_store_realise")?;
 
         // Return the collected outputs
         Ok(userdata.0)
@@ -245,7 +245,7 @@ impl Store {
                 store_path.inner.as_ptr(),
             )
         };
-        NixErrorCode::from(err, "nix_store_copy_closure")
+        NixErrorCode::result_from(err, "nix_store_copy_closure")
     }
 
     pub fn copy_closure_from(
@@ -261,7 +261,7 @@ impl Store {
                 store_path.inner.as_ptr(),
             )
         };
-        NixErrorCode::from(err, "nix_store_copy_closure")
+        NixErrorCode::result_from(err, "nix_store_copy_closure")
     }
 }
 

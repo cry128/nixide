@@ -1,20 +1,20 @@
 use std::ptr::NonNull;
 
+use crate::errors::{new_nixide_error, ErrorContext};
 use crate::sys;
-use crate::{ErrorContext, NixErrorCode};
+use crate::util::wrappers::AsInnerPtr;
+use crate::NixideError;
 
 pub(super) struct FetchersSettings {
     pub(super) ptr: NonNull<sys::nix_fetchers_settings>,
 }
 
 impl FetchersSettings {
-    pub fn new() -> Result<Self, NixErrorCode> {
-        let ctx = ErrorContext::new()?;
+    pub fn new() -> Result<Self, NixideError> {
+        let ctx = ErrorContext::new();
         let ptr = unsafe { sys::nix_fetchers_settings_new(ctx.as_ptr()) };
         Ok(FetchersSettings {
-            ptr: NonNull::new(ptr).ok_or(NixErrorCode::NullPtr {
-                location: "fetchers_settings_new",
-            })?,
+            ptr: NonNull::new(ptr).ok_or(new_nixide_error!(NullPtr))?,
         })
     }
 

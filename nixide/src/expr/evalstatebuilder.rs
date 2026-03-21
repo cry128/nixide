@@ -2,8 +2,10 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 
 use super::EvalState;
+use crate::errors::{new_nixide_error, ErrorContext, NixideError};
 use crate::sys;
-use crate::{ErrorContext, NixErrorCode, Store};
+use crate::util::wrappers::AsInnerPtr;
+use crate::Store;
 
 /// Builder for Nix evaluation state.
 ///
@@ -12,7 +14,6 @@ use crate::{ErrorContext, NixErrorCode, Store};
 pub struct EvalStateBuilder {
     inner: NonNull<sys::nix_eval_state_builder>,
     store: Arc<Store>,
-    context: Arc<ErrorContext>,
 }
 
 impl EvalStateBuilder {
@@ -25,19 +26,16 @@ impl EvalStateBuilder {
     /// # Errors
     ///
     /// Returns an error if the builder cannot be created.
-    pub fn new(store: &Arc<Store>) -> Result<Self, NixErrorCode> {
+    pub fn new(store: &Arc<Store>) -> Result<Self, NixideError> {
         // SAFETY: store context and store are valid
         let builder_ptr =
             unsafe { sys::nix_eval_state_builder_new(store._context.as_ptr(), store.as_ptr()) };
 
-        let inner = NonNull::new(builder_ptr).ok_or(NixErrorCode::NullPtr {
-            location: "nix_eval_state_builder_new",
-        })?;
+        let inner = NonNull::new(builder_ptr).ok_or(new_nixide_error!(NullPtr))?;
 
         Ok(EvalStateBuilder {
             inner,
             store: Arc::clone(store),
-            context: Arc::clone(&store._context),
         })
     }
 
@@ -46,29 +44,24 @@ impl EvalStateBuilder {
     /// # Errors
     ///
     /// Returns an error if the evaluation state cannot be built.
-    pub fn build(self) -> Result<EvalState, NixErrorCode> {
+    pub fn build(self) -> Result<EvalState, NixideError> {
+        let ctx = ErrorContext::new();
         // Load configuration first
-        // SAFETY: context and builder are valid
-        NixErrorCode::from(
-            unsafe { sys::nix_eval_state_builder_load(self.context.as_ptr(), self.inner.as_ptr()) },
-            "nix_eval_state_builder_load",
-        )?;
+        unsafe { sys::nix_eval_state_builder_load(ctx.as_ptr(), self.as_ptr()) };
+        if let Some(err) = ctx.peak() {
+            return Err(err);
+        }
 
         // Build the state
-        // SAFETY: context and builder are valid
-        let state_ptr =
-            unsafe { sys::nix_eval_state_build(self.context.as_ptr(), self.inner.as_ptr()) };
+        let state_ptr = unsafe { sys::nix_eval_state_build(ctx.as_ptr(), self.as_ptr()) };
+        if let Some(err) = ctx.peak() {
+            return Err(err);
+        }
 
-        let inner = NonNull::new(state_ptr).ok_or(NixErrorCode::NullPtr {
-            location: "nix_eval_state_build",
-        })?;
+        let inner = NonNull::new(state_ptr).ok_or(new_nixide_error!(NullPtr))?;
 
         // The builder is consumed here - its Drop will clean up
-        Ok(EvalState::new(
-            inner,
-            self.store.clone(),
-            self.context.clone(),
-        ))
+        Ok(EvalState::new(inner, self.store.clone()))
     }
 
     pub(crate) unsafe fn as_ptr(&self) -> *mut sys::nix_eval_state_builder {
