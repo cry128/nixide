@@ -92,34 +92,35 @@ pub(crate) use __nix_callback;
 /// ```
 ///
 macro_rules! nix_callback {
-    ( | $userdata:ident : $userdata_type:ty; $($arg_name:ident : $arg_type:ty),* $(,)? | -> $ret:ty $body:block, $function:expr $(,)? ) => {{
+    ( | $( $($pre:ident : $pre_ty:ty),+ $(,)? )? ; $userdata:ident : $userdata_type:ty ; $( $($post:ident : $post_ty:ty),+ $(,)? )? | -> $ret:ty $body:block, $function:expr $(,)? ) => {{
         type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
         // create a function item that wraps the closure body (so it has a concrete type)
-        fn __captured_fn($userdata: &mut __UserData, $($arg_name: $arg_type),*) -> $ret $body
+        unsafe extern "C" fn __captured_fn(
+            $($( $pre: $pre_ty, )*)?
+            $userdata: &mut __UserData,
+            $($( $post: $post_ty, )*)?
+        ) -> $ret $body
 
         unsafe extern "C" fn __wrapper_callback(
+            $($( $pre: $pre_ty, )*)?
             $userdata: *mut ::std::ffi::c_void,
-            $(
-              $arg_name: $arg_type,
-            )*
+            $($( $post: $post_ty, )*)?
         ) {
             let ud = unsafe { &mut *($userdata as *mut __UserData) };
             let stored_retval = &raw mut ud.retval;
 
-            let retval = __captured_fn(
-                ud,
-                $(
-                    $arg_name,
-                )*
-            );
+            let retval = unsafe {
+                __captured_fn(
+                    $($( $pre, )*)?
+                    ud,
+                    $($( $post, )*)?
+                );
+            };
 
             unsafe {
                 stored_retval.write(retval)
             };
         }
-
-        let mut __ctx: $crate::errors::ErrorContext = $crate::errors::ErrorContext::new();
-        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
 
         // fn __captured_function(
         //     callback: unsafe extern "C" fn(
@@ -134,49 +135,16 @@ macro_rules! nix_callback {
         //     $function(callback, state, ctx);
         // }
 
+        let mut __ctx: $crate::errors::ErrorContext = $crate::errors::ErrorContext::new();
+        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
+
         $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
 
-        // add type annotations for compiler
         __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval })
-    }};
-
-    ( | $($arg_name:ident : $arg_type:ty),* ; $userdata:ident : $userdata_type:ty $(,)? | -> $ret:ty $body:block, $callback:expr $(,)? ) => {{
-        type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
-        // create a function item that wraps the closure body (so it has a concrete type)
-        unsafe extern "C" fn __captured_fn( $( $arg_name: $arg_type ),*, $userdata: &mut __UserData) -> $ret $body
-
-        unsafe extern "C" fn __wrapper_callback(
-            $(
-              $arg_name: $arg_type,
-            )*
-            $userdata: *mut ::std::ffi::c_void,
-        ) {
-            unsafe {
-                let ud = &mut *($userdata as *mut __UserData);
-                let stored_retval = &raw mut ud.retval;
-
-                let retval = __captured_fn(
-                    $(
-                        $arg_name,
-                    )*
-                    ud,
-                );
-
-                stored_retval.write(retval)
-            }
-        }
-
-        // $crate::util::wrap::__nix_callback!($userdata_type, $ret, $callback)
-        let mut __ctx = $crate::errors::ErrorContext::new();
-        let mut __state: ::std::mem::MaybeUninit<
-            __UserData
-        > = ::std::mem::MaybeUninit::uninit();
-
-        $callback(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
 
         // add type annotations for compiler
-        let __return: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
-        __return
+        // let __result: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
+        // __result
     }};
 }
 pub(crate) use nix_callback;
@@ -185,7 +153,7 @@ pub(crate) use nix_callback;
 macro_rules! nix_string_callback {
     ($callback:expr $(,)?) => {{
         $crate::util::wrap::nix_callback!(
-            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint ; userdata: ()| -> $crate::NixideResult<String> {
+            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> $crate::NixideResult<String> {
                 start.to_utf8_string_n(n as usize)
             },
             $callback

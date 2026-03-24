@@ -148,7 +148,7 @@ impl Store {
         // };
 
         wrap::nix_callback!(
-            |userdata: fn(&str, &StorePath);
+            |; userdata: fn(&str, &StorePath);
              output_name_ptr: *const c_char,
              output_path_ptr: *const sys::StorePath|
              -> NixideResult<(String, StorePath)> {
