@@ -271,7 +271,7 @@ impl ErrorContext {
     pub(super) fn get_nix_err_name(&self) -> Option<String> {
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap::nix_string_callback!(|callback, userdata: *mut __UserData, ctx: &ErrorContext| {
+            wrap::nix_string_callback!(|callback, userdata: &mut __UserData, ctx: &ErrorContext| {
                 sys::nix_err_name(ctx.as_ptr(), self.as_ptr(), Some(callback), userdata)
             })
             .ok()
@@ -316,7 +316,7 @@ impl ErrorContext {
     pub(super) fn get_nix_err_info_msg(&self) -> Option<String> {
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap::nix_string_callback!(|callback, user_data, ctx| {
+            wrap::nix_string_callback!(|callback, user_data, ctx: &ErrorContext| {
                 sys::nix_err_info_msg(ctx.as_ptr(), self.as_ptr(), Some(callback), user_data)
             })
             .ok()

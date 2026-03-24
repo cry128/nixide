@@ -103,18 +103,17 @@ macro_rules! nix_callback {
 
         unsafe extern "C" fn __wrapper_callback(
             $($( $pre: $pre_ty, )*)?
-            $userdata: *mut ::std::ffi::c_void,
+            $userdata: &mut __UserData,
             $($( $post: $post_ty, )*)?
         ) {
-            let ud = unsafe { &mut *($userdata as *mut __UserData) };
-            let stored_retval = &raw mut ud.retval;
+            let stored_retval = &raw mut $userdata.retval;
 
             let retval = unsafe {
                 __captured_fn(
                     $($( $pre, )*)?
-                    ud,
+                    $userdata,
                     $($( $post, )*)?
-                );
+                )
             };
 
             unsafe {
@@ -122,29 +121,12 @@ macro_rules! nix_callback {
             };
         }
 
-        // fn __captured_function(
-        //     callback: unsafe extern "C" fn(
-        //         $userdata: *mut ::std::ffi::c_void,
-        //         $(
-        //           $arg_name: $arg_type,
-        //         )*
-        //     ),
-        //     state: *mut __UserData,
-        //     ctx: &$crate::errors::ErrorContext,
-        // ) {
-        //     $function(callback, state, ctx);
-        // }
-
         let mut __ctx: $crate::errors::ErrorContext = $crate::errors::ErrorContext::new();
         let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
 
-        $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
+        $function(__wrapper_callback, &mut __state, &__ctx);
 
         __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval })
-
-        // add type annotations for compiler
-        // let __result: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
-        // __result
     }};
 }
 pub(crate) use nix_callback;
