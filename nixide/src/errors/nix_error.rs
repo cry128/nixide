@@ -98,36 +98,6 @@ pub enum NixError {
     Undocumented(sys::nix_err),
 }
 
-// impl NixError {
-//     /// # Panics
-//     ///
-//     /// This function will panic in the event that `context.get_err() == Some(err) && err == sys::nix_err_NIX_OK`
-//     /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::ni_err_NIX_OK`.
-//     ///
-//     ///
-//     /// This function will panic in the event that `value != sys::nix_err_NIX_OK`
-//     /// but that `context.get_code() == sys::nix_err_NIX_OK`
-//     pub(super) fn from_error_context(context: &ErrorContext) -> Option<NixError> {
-//         #[allow(nonstandard_style)]
-//         match context.get_err()? {
-//             sys::nix_err_NIX_OK => unreachable!("call to `nixide::ErrorContext::get_err@nixide::NixError::from_context` failed: please open an issue on https://github.com/cry128/nixide"),
-
-//             sys::nix_err_NIX_ERR_OVERFLOW => Some(NixError::Overflow),
-//             sys::nix_err_NIX_ERR_KEY => Some(NixError::KeyNotFound(None)),
-//             sys::nix_err_NIX_ERR_NIX_ERROR => Some(NixError::ExprEval {
-//                 name: context
-//                     .get_nix_err_name()
-//                     .expect("call to `nixide::ErrorContext::get_nix_err_name@nixide::NixError::from_context` failed: please open an issue on https://github.com/cry128/nixide"),
-//                 info_msg: context.get_nix_err_info_msg()
-//                     .expect("call to `nixide::ErrorContext::get_nix_err_info_msg@nixide::NixError::from_context` failed: please open an issue on https://github.com/cry128/nixide"),
-//             }),
-
-//             sys::nix_err_NIX_ERR_UNKNOWN => Some(NixError::Unknown),
-//             err => Some(NixError::Undocumented(err)),
-//         }
-//     }
-// }
-
 impl Display for NixError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {

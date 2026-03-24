@@ -1,3 +1,18 @@
+use crate::NixideError;
+
+pub trait AsErr<T> {
+    fn as_err(self) -> Result<(), T>;
+}
+
+impl AsErr<NixideError> for Option<NixideError> {
+    fn as_err(self) -> Result<(), NixideError> {
+        match self {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
+}
+
 pub trait AsInnerPtr<T> {
     /// Get a pointer to the underlying (`inner`) `libnix` C struct.
     ///

@@ -1,8 +1,8 @@
 // #![warn(missing_docs)]
 
 pub(crate) mod errors;
-mod expr;
-mod flake;
+// mod expr;
+// mod flake;
 mod stdext;
 mod store;
 pub(crate) mod util;
@@ -10,7 +10,7 @@ mod verbosity;
 mod version;
 
 pub use errors::{NixError, NixideError, NixideResult};
-pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
+// pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
 pub use store::{Store, StorePath};
 pub use verbosity::NixVerbosity;
 pub use version::NixVersion;

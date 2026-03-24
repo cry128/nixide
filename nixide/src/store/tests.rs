@@ -5,23 +5,17 @@ use super::*;
 #[test]
 #[serial]
 fn test_store_opening() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
-    let _store = Store::open(&ctx, None).expect("Failed to open store");
+    let _store = Store::open(None).expect("Failed to open store");
 }
 
 #[test]
 #[serial]
 fn test_store_path_parse() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
-    let store = Store::open(&ctx, None).expect("Failed to open store");
+    let store = Store::open(None).expect("Failed to open store");
 
     // Try parsing a well-formed store path
     // Note: This may fail if the path doesn't exist in the store
-    let result = StorePath::parse(
-        &ctx,
-        &store,
-        "/nix/store/00000000000000000000000000000000-test",
-    );
+    let result = StorePath::parse(&store, "/nix/store/00000000000000000000000000000000-test");
 
     // We don't assert success here because the path might not exist
     // This test mainly checks that the API works correctly
@@ -38,16 +32,11 @@ fn test_store_path_parse() {
 #[test]
 #[serial]
 fn test_store_path_clone() {
-    let ctx = Arc::new(ErrorContext::new().expect("Failed to create context"));
-    let store = Store::open(&ctx, None).expect("Failed to open store");
+    let store = Store::open(None).expect("Failed to open store");
 
     // Try to get a valid store path by parsing
     // Note: This test is somewhat limited without a guaranteed valid path
-    if let Ok(path) = StorePath::parse(
-        &ctx,
-        &store,
-        "/nix/store/00000000000000000000000000000000-test",
-    ) {
+    if let Ok(path) = StorePath::parse(&store, "/nix/store/00000000000000000000000000000000-test") {
         let cloned = path.clone();
 
         // Assert that the cloned path has the same name as the original

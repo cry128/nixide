@@ -24,11 +24,12 @@
 use std::ffi::c_uint;
 use std::ptr::NonNull;
 
-use super::{NixError, NixideError, NixideResult};
+use super::{NixError, NixideResult};
+use crate::stdext::CCharPtrExt as _;
 use crate::sys;
-use crate::util::bindings::wrap_libnix_string_callback;
+use crate::util::panic_issue_call_failed;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::util::{panic_issue_call_failed, CCharPtrNixExt};
 
 /// This object stores error state.
 ///
@@ -72,9 +73,22 @@ impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
 }
 
 impl Into<NixideResult<()>> for &ErrorContext {
+    /// # Panics
+    ///
+    /// This function will panic in the event that `context.get_err() == Some(err) && err == sys::nix_err_NIX_OK`
+    /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::nix_err_NIX_OK`.
+    ///
+    /// This function will panic in the event that `value != sys::nix_err_NIX_OK`
+    /// but that `context.get_code() == sys::nix_err_NIX_OK`
     fn into(self) -> NixideResult<()> {
-        let inner = self.get_err().ok_?;
-        let msg = self.get_msg()?;
+        let inner = match self.get_err() {
+            Some(err) => err,
+            None => return Ok(()),
+        };
+        let msg = match self.get_msg() {
+            Some(msg) => msg,
+            None => return Ok(()),
+        };
 
         let err = match inner {
             sys::nix_err_NIX_OK => unreachable!(),
@@ -95,7 +109,7 @@ impl Into<NixideResult<()>> for &ErrorContext {
             err => NixError::Undocumented(err),
         };
 
-        Some(new_nixide_error!(NixError, inner, err, msg))
+        Err(new_nixide_error!(NixError, inner, err, msg))
     }
 }
 
@@ -132,18 +146,13 @@ impl ErrorContext {
 
     /// Check the error code and return an error if it's not `NIX_OK`.
     pub fn peak(&self) -> NixideResult<()> {
-        match self.into() {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
+        self.into()
     }
 
     ///
     /// Equivalent to running `self.peak()` then `self.clear()`
     pub fn pop(&mut self) -> NixideResult<()> {
-        let error = self.peak();
-        self.clear();
-        error
+        self.peak().and_then(|_| Ok(self.clear()))
     }
 
     /// # Nix C++ API Internals
@@ -214,13 +223,12 @@ impl ErrorContext {
     /// Hence we can just test whether the returned pointer is a `NULL` pointer,
     /// and avoid passing in a [sys::nix_c_context] struct.
     pub(super) fn get_msg(&self) -> Option<String> {
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
         let ctx = ErrorContext::new();
         unsafe {
             // NOTE: an Err here only occurs when `self.get_code() == Ok(())`
             let mut n: c_uint = 0;
             sys::nix_err_msg(ctx.as_ptr(), self.as_ptr(), &mut n)
-                .to_utf8_string()
+                .to_utf8_string_n(n as usize)
                 .ok()
         }
     }
@@ -261,10 +269,9 @@ impl ErrorContext {
     /// }
     /// ```
     pub(super) fn get_nix_err_name(&self) -> Option<String> {
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap_libnix_string_callback(|ctx, callback, user_data| {
+            wrap::nix_string_callback(|callback, user_data, ctx| {
                 sys::nix_err_name(ctx.as_ptr(), self.as_ptr(), Some(callback), user_data)
             })
             .ok()
@@ -307,10 +314,9 @@ impl ErrorContext {
     /// }
     /// ```
     pub(super) fn get_nix_err_info_msg(&self) -> Option<String> {
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap_libnix_string_callback(|ctx, callback, user_data| {
+            wrap::nix_string_callback(|callback, user_data, ctx| {
                 sys::nix_err_info_msg(ctx.as_ptr(), self.as_ptr(), Some(callback), user_data)
             })
             .ok()
@@ -320,7 +326,6 @@ impl ErrorContext {
 
 impl Drop for ErrorContext {
     fn drop(&mut self) {
-        // SAFETY: We own the context and it's valid until drop
         unsafe {
             sys::nix_c_context_free(self.inner.as_ptr());
         }

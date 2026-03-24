@@ -4,7 +4,7 @@ use std::ptr::{null_mut, NonNull};
 use super::{FetchersSettings, FlakeReferenceParseFlags, FlakeSettings};
 use crate::errors::new_nixide_error;
 use crate::sys;
-use crate::util::bindings::wrap_libnix_string_callback;
+use crate::util::bindings::wrap_nix_string_callback;
 use crate::util::wrappers::AsInnerPtr;
 use crate::NixideError;
 
@@ -36,7 +36,7 @@ impl FlakeReference {
         reference: &str,
     ) -> Result<(FlakeReference, String), NixideError> {
         let mut ptr: *mut sys::nix_flake_reference = null_mut();
-        let result = wrap_libnix_string_callback(|ctx, callback, user_data| unsafe {
+        let result = wrap_nix_string_callback(|ctx, callback, user_data| unsafe {
             sys::nix_flake_reference_and_fragment_from_string(
                 ctx.as_ptr(),
                 fetch_settings.as_ptr(),

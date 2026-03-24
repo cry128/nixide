@@ -11,6 +11,9 @@ macro_rules! panic_issue_call_failed {
     () => {{
         crate::util::panic_issue!("[nixide] call to `{}` failed", stdext::debug_name!())
     }};
+    ($($arg:expr),*) => {{
+        crate::util::panic_issue!("[nixide] call to `{}` failed with \"{}\"", stdext::debug_name!(), format!($($arg),*))
+    }};
 }
 
 pub(crate) use panic_issue;

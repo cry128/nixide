@@ -40,7 +40,7 @@ impl Value {
         let ctx = ErrorContext::new();
 
         unsafe { sys::nix_value_force(ctx.as_ptr(), state.as_ptr(), self.as_ptr()) };
-        ctx.peak().as_err()
+        ctx.peak()
     }
 
     /// Force deep evaluation of this value.
@@ -54,7 +54,7 @@ impl Value {
         let ctx = ErrorContext::new();
 
         unsafe { sys::nix_value_force_deep(ctx.as_ptr(), state.as_ptr(), self.as_ptr()) };
-        ctx.peak().as_err()
+        ctx.peak()
     }
 
     /// Get the type of this value.
@@ -66,9 +66,7 @@ impl Value {
         // NOTE: an error here only occurs if `nix_get_type` catches an error,
         // NOTE: which in turn only happens if the `sys::nix_value*` is a null pointer
         // NOTE: or points to an uninitialised `nix_value` struct.
-        ctx.peak()
-            .as_err()
-            .unwrap_or_else(|_| panic!("TODO im sleepy rn"));
+        ctx.peak().unwrap_or_else(|_| panic!("TODO im sleepy rn"));
         value_type
     }
 
