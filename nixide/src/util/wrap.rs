@@ -11,6 +11,22 @@ impl<S, T> AsMut<UserData<S, T>> for UserData<S, T> {
     }
 }
 
+// pub(crate) trait VoidPtrIsomorphism {
+//     fn as_void_ptr(self) -> *mut c_void;
+
+//     fn from_void_ptr(ptr: *mut c_void) -> Self;
+// }
+
+// impl<S, T> VoidPtrIsomorphism for *mut UserData<S, T> {
+//     fn as_void_ptr(self) -> *mut c_void {
+//         self as *mut c_void
+//     }
+
+//     fn from_void_ptr(ptr: *mut c_void) -> Self {
+//         ptr as Self
+//     }
+// }
+
 impl<S, T> UserData<S, T> {
     /// # Warning
     ///
@@ -46,6 +62,8 @@ macro_rules! nonnull {
         }
     }};
 }
+use std::ffi::c_void;
+
 pub(crate) use nonnull;
 
 macro_rules! nix_fn {
@@ -80,6 +98,7 @@ macro_rules! __nix_callback {
         __return
     }};
 }
+#[allow(unused_imports)] // XXX: TODO: replace the tail of `nix_callback!` with this macro
 pub(crate) use __nix_callback;
 
 /// `libnix` functions consistently either expect the `userdata`/`user_data` (inconsistently named in the API...)
@@ -95,36 +114,37 @@ macro_rules! nix_callback {
     ( | $( $($pre:ident : $pre_ty:ty),+ $(,)? )? ; $userdata:ident : $userdata_type:ty ; $( $($post:ident : $post_ty:ty),+ $(,)? )? | -> $ret:ty $body:block, $function:expr $(,)? ) => {{
         type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
         // create a function item that wraps the closure body (so it has a concrete type)
+        #[allow(unused_variables)]
         unsafe extern "C" fn __captured_fn(
             $($( $pre: $pre_ty, )*)?
-            $userdata: &mut __UserData,
+            $userdata: *mut __UserData,
             $($( $post: $post_ty, )*)?
-        ) -> $ret $body
+        ) -> $ret { $body }
 
         unsafe extern "C" fn __wrapper_callback(
             $($( $pre: $pre_ty, )*)?
-            $userdata: &mut __UserData,
+            $userdata: *mut ::std::ffi::c_void,
             $($( $post: $post_ty, )*)?
         ) {
-            let stored_retval = &raw mut $userdata.retval;
-
-            let retval = unsafe {
-                __captured_fn(
-                    $($( $pre, )*)?
-                    $userdata,
-                    $($( $post, )*)?
-                )
-            };
-
             unsafe {
+                let userdata_ = $userdata as *mut __UserData;
+                let stored_retval = &raw mut (*userdata_).retval;
+
+                let retval =
+                    __captured_fn(
+                        $($( $pre, )*)?
+                        userdata_,
+                        $($( $post, )*)?
+                    );
+
                 stored_retval.write(retval)
-            };
+            }
         }
 
         let mut __ctx: $crate::errors::ErrorContext = $crate::errors::ErrorContext::new();
-        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
+        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::zeroed();
 
-        $function(__wrapper_callback, &mut __state, &__ctx);
+        $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
 
         __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval })
     }};
@@ -133,20 +153,20 @@ pub(crate) use nix_callback;
 
 // XXX: TODO: convert these to declarative macros
 macro_rules! nix_string_callback {
-    ($callback:expr $(,)?) => {{
+    ($function:expr $(,)?) => {{
         $crate::util::wrap::nix_callback!(
             |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> $crate::NixideResult<String> {
-                start.to_utf8_string_n(n as usize)
+                $crate::stdext::CCharPtrExt::to_utf8_string_n(start, n as usize)
             },
-            $callback
+            $function
         )
     }};
 }
 pub(crate) use nix_string_callback;
 
 macro_rules! nix_pathbuf_callback {
-    ($callback:expr $(,)?) => {{
-        $crate::util::wrap::nix_string_callback!($callback).map(::std::path::PathBuf::from)
+    ($function:expr $(,)?) => {{
+        $crate::util::wrap::nix_string_callback!($function).map(::std::path::PathBuf::from)
     }};
 }
 pub(crate) use nix_pathbuf_callback;

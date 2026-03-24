@@ -162,7 +162,7 @@ impl Store {
                 })?;
                 let store_path = StorePath { inner };
 
-                let callback = userdata.inner;
+                let callback = unsafe { (*userdata).inner };
                 callback(output_name.as_ref(), &store_path);
 
                 Ok((output_name, store_path))
@@ -213,27 +213,43 @@ impl Store {
     ///
     /// If the store doesn't have a version (like the dummy store), returns None
     pub fn version(&self) -> Result<String, NixideError> {
-        wrap::nix_string_callback(|callback, user_data, ctx| unsafe {
-            sys::nix_store_get_version(ctx.as_ptr(), self.inner.as_ptr(), Some(callback), user_data)
-        })
+        wrap::nix_string_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
+                sys::nix_store_get_version(
+                    ctx.as_ptr(),
+                    self.inner.as_ptr(),
+                    Some(callback),
+                    userdata as *mut c_void,
+                )
+            }
+        )
     }
 
     /// Get the URI of a Nix store
     pub fn uri(&self) -> Result<String, NixideError> {
-        wrap::nix_string_callback(|callback, user_data, ctx| unsafe {
-            sys::nix_store_get_uri(ctx.as_ptr(), self.inner.as_ptr(), Some(callback), user_data)
-        })
+        wrap::nix_string_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
+                sys::nix_store_get_uri(
+                    ctx.as_ptr(),
+                    self.inner.as_ptr(),
+                    Some(callback),
+                    userdata as *mut c_void,
+                )
+            }
+        )
     }
 
     pub fn store_dir(&self) -> Result<PathBuf, NixideError> {
-        wrap::nix_pathbuf_callback(|callback, user_data, ctx| unsafe {
-            sys::nix_store_get_storedir(
-                ctx.as_ptr(),
-                self.inner.as_ptr(),
-                Some(callback),
-                user_data,
-            )
-        })
+        wrap::nix_pathbuf_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
+                sys::nix_store_get_storedir(
+                    ctx.as_ptr(),
+                    self.inner.as_ptr(),
+                    Some(callback),
+                    userdata as *mut c_void,
+                )
+            }
+        )
     }
 
     pub fn copy_closure_to(

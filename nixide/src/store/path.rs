@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::ffi::{c_void, CString};
 use std::path::PathBuf;
 use std::ptr::NonNull;
 
@@ -56,8 +56,8 @@ impl StorePath {
     /// Returns an error if the name cannot be retrieved.
     ///
     pub fn name(&self) -> Result<String, NixideError> {
-        wrap::nix_string_callback(|callback, user_data, _| unsafe {
-            sys::nix_store_path_name(self.inner.as_ptr(), Some(callback), user_data);
+        wrap::nix_string_callback!(|callback, userdata: *mut __UserData, _| unsafe {
+            sys::nix_store_path_name(self.inner.as_ptr(), Some(callback), userdata as *mut c_void);
             // NOTE: nix_store_path_name doesn't return nix_err, so we force it to return successfully
             nix_err_NIX_OK
         })
@@ -85,15 +85,17 @@ impl StorePath {
     /// * `store` - The store containing the path
     ///
     pub fn real_path(&self, store: &Store) -> Result<PathBuf, NixideError> {
-        wrap::nix_pathbuf_callback(|callback, user_data, ctx| unsafe {
-            sys::nix_store_real_path(
-                ctx.as_ptr(),
-                store.inner.as_ptr(),
-                self.as_ptr(),
-                Some(callback),
-                user_data,
-            )
-        })
+        wrap::nix_pathbuf_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
+                sys::nix_store_real_path(
+                    ctx.as_ptr(),
+                    store.inner.as_ptr(),
+                    self.as_ptr(),
+                    Some(callback),
+                    userdata as *mut c_void,
+                )
+            }
+        )
     }
 
     /// Check if a [StorePath] is valid (i.e. that its corresponding store object
