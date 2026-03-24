@@ -1,3 +1,5 @@
+- [ ] rename `AsInnerPtr::as_ptr` to `AsInnerPtr::as_mut_ptr`
+
 - [ ] add NixError::from_nonnull that replaces calls to NonNull::new(...).ok_or(...)
 - [ ] replace all `use nixide_sys as sys;` -> `use crate::sys;`
 - [ ] store NonNull pointers in structs!

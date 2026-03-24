@@ -16,15 +16,14 @@ mod tests;
 mod path;
 pub use path::*;
 
-use std::ffi::CString;
-use std::os::raw::c_char;
+use std::ffi::{c_char, c_void, CString};
 use std::path::PathBuf;
 use std::ptr::{null, null_mut, NonNull};
 use std::result::Result;
 
 use crate::errors::{new_nixide_error, ErrorContext};
 use crate::stdext::CCharPtrExt;
-use crate::util::wrap;
+use crate::util::wrap::{self, UserData};
 use crate::util::wrappers::AsInnerPtr;
 use crate::{NixideError, NixideResult};
 use nixide_sys as sys;
@@ -149,36 +148,33 @@ impl Store {
         // };
 
         wrap::nix_callback!(
-            |userdata ;
+            |userdata: fn(&str, &StorePath);
              output_name_ptr: *const c_char,
              output_path_ptr: *const sys::StorePath|
              -> NixideResult<(String, StorePath)> {
                 // XXX: TODO: test to see if this is ever null ("out" as a default feels unsafe...)
                 // let output_name = output_name_ptr.to_utf8_string().unwrap_or("out".to_owned());
+                // NOTE: this also ensures `output_name_ptr` isn't null
                 let output_name = output_name_ptr.to_utf8_string()?;
 
-                // SAFETY: out is a valid StorePath pointer from Nix, we need to clone it
-                // because Nix owns the original and may free it after the callback
-                if !output_path_ptr.is_null() {
-                    let inner = wrap::nix_ptr_fn!(|ctx| unsafe {
-                        sys::nix_store_path_clone(output_path_ptr as *mut sys::StorePath)
-                    })?;
-                    let store_path = StorePath { inner };
+                let inner = wrap::nix_ptr_fn!(|ctx| unsafe {
+                    sys::nix_store_path_clone(output_path_ptr as *mut sys::StorePath)
+                })?;
+                let store_path = StorePath { inner };
 
-                    callback(output_name.as_ref(), &store_path);
+                let callback = userdata.inner;
+                callback(output_name.as_ref(), &store_path);
 
-                    Ok((output_name, store_path))
-                } else {
-                    panic!("IDK YET");
-                    // XXX: TODO: how should `output_path_ptr.is_null()` be handled?
-                }
+                Ok((output_name, store_path))
             },
-            |callback, userdata, ctx: &ErrorContext| unsafe {
+            |callback,
+             state: *mut UserData<fn(&str, &StorePath), NixideResult<(String, StorePath)>>,
+             ctx: &ErrorContext| unsafe {
                 sys::nix_store_realise(
                     ctx.as_ptr(),
                     self.inner.as_ptr(),
                     path.as_ptr(),
-                    userdata,
+                    (*state).inner_ptr() as *mut c_void,
                     Some(callback),
                 )
             }

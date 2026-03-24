@@ -1,21 +1,39 @@
-use std::mem::MaybeUninit;
-use std::os::raw::{c_char, c_uint, c_void};
-use std::path::PathBuf;
-
-use crate::errors::{ErrorContext, NixideError};
-use crate::stdext::CCharPtrExt as _;
-use crate::util::wrappers::AsInnerPtr;
-use crate::NixideResult;
-
-struct UserData<T> {
-    // inner: T,
-    inner: MaybeUninit<T>,
+#[repr(C)]
+#[derive(Debug)]
+pub(crate) struct UserData<S, T> {
+    pub inner: S,
+    pub retval: T,
 }
 
-impl<T> AsInnerPtr<T> for UserData<T> {
-    unsafe fn as_ptr(&self) -> *mut T {
-        self.inner.as_mut_ptr()
+impl<S, T> AsMut<UserData<S, T>> for UserData<S, T> {
+    fn as_mut(&mut self) -> &mut UserData<S, T> {
+        self
     }
+}
+
+impl<S, T> UserData<S, T> {
+    /// # Warning
+    ///
+    /// Ensure `self.retval` has been initialised before unwrapping!
+    ///
+    pub unsafe fn unwrap(self) -> (S, T) {
+        (self.inner, self.retval)
+    }
+
+    pub unsafe fn as_mut_ptr(&mut self) -> *mut Self {
+        self as *mut Self
+    }
+
+    pub unsafe fn inner_ptr(&mut self) -> *mut S {
+        unsafe {
+            let ptr = self.as_mut_ptr();
+            &raw mut (*ptr).inner
+        }
+    }
+
+    // pub unsafe fn retval_ptr(&mut self) -> *mut c_void {
+    //     &mut self.retval as *mut T as *mut c_void
+    // }
 }
 
 macro_rules! nonnull {
@@ -23,7 +41,7 @@ macro_rules! nonnull {
         match ::std::ptr::NonNull::new($ptr) {
             ::std::option::Option::Some(p) => ::std::result::Result::Ok(p),
             ::std::option::Option::None => {
-                ::std::result::Result::Err(crate::errors::new_nixide_error!(NullPtr))
+                ::std::result::Result::Err($crate::errors::new_nixide_error!(NullPtr))
             }
         }
     }};
@@ -32,116 +50,153 @@ pub(crate) use nonnull;
 
 macro_rules! nix_fn {
     ($callback:expr $(,)? ) => {{
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
-        let mut ctx = crate::errors::ErrorContext::new();
-        let result = $callback(
-            &ctx,
-        );
-        ctx.pop().and_then(|_| ::std::result::Result::Ok(result))
+        let mut __ctx = $crate::errors::ErrorContext::new();
+        let __result = $callback(&__ctx);
+        __ctx
+            .pop()
+            .and_then(|_| ::std::result::Result::Ok(__result))
     }};
 }
 pub(crate) use nix_fn;
 
 macro_rules! nix_ptr_fn {
     ($callback:expr $(,)? ) => {{
-        crate::util::wrap::nix_fn!($callback).and_then(|ptr| crate::util::wrap::nonnull!(ptr))
+        $crate::util::wrap::nix_fn!($callback).and_then(|ptr| $crate::util::wrap::nonnull!(ptr))
     }};
 }
 pub(crate) use nix_ptr_fn;
 
+macro_rules! __nix_callback {
+    ($userdata_type:ty, $ret:ty, $callback:expr) => {{
+        let mut __ctx = $crate::errors::ErrorContext::new();
+        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
+
+        $callback(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
+
+        // add type annotations for compiler
+        let __return: $ret = __ctx
+            .pop()
+            .and_then(|_| unsafe { __state.assume_init().retval });
+        __return
+    }};
+}
+pub(crate) use __nix_callback;
+
+/// `libnix` functions consistently either expect the `userdata`/`user_data` (inconsistently named in the API...)
+/// field to be the first or last parameter (differs between function). The `nix_callback!` macro allows the
+/// position to be specified by either the following syntax:
+///
+/// ```rs
+/// nix_callback(userdata; ...); // first parameter
+/// nix_callback(...; userdata); // last parameter
+/// ```
+///
 macro_rules! nix_callback {
-    ( | $($arg_name:ident : $arg_type:ty),* ; userdata $( : *mut c_void )? $(,)? | -> $ret:ty $body:block, $callback:expr $(,)? ) => {{
+    ( | $userdata:ident : $userdata_type:ty; $($arg_name:ident : $arg_type:ty),* $(,)? | -> $ret:ty $body:block, $function:expr $(,)? ) => {{
+        type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
         // create a function item that wraps the closure body (so it has a concrete type)
-        #[allow(unused_variables)]
-        fn __captured_fn( $( $arg_name: $arg_type ),*, userdata: *mut ::std::os::raw::c_void) -> $ret $body
+        fn __captured_fn($userdata: &mut __UserData, $($arg_name: $arg_type),*) -> $ret $body
 
         unsafe extern "C" fn __wrapper_callback(
+            $userdata: *mut ::std::ffi::c_void,
             $(
               $arg_name: $arg_type,
             )*
-            userdata: *mut ::std::os::raw::c_void,
         ) {
-            let result = unsafe { &mut *(userdata as *mut $ret) };
+            let ud = unsafe { &mut *($userdata as *mut __UserData) };
+            let stored_retval = &raw mut ud.retval;
 
-            *result = __captured_fn(
+            let retval = __captured_fn(
+                ud,
                 $(
                     $arg_name,
                 )*
-                userdata,
             );
+
+            unsafe {
+                stored_retval.write(retval)
+            };
         }
 
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
-        let mut ctx = crate::errors::ErrorContext::new();
-        let mut result: ::std::mem::MaybeUninit<$ret> = ::std::mem::MaybeUninit::uninit();
+        let mut __ctx: $crate::errors::ErrorContext = $crate::errors::ErrorContext::new();
+        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
 
-        $callback(
-            __wrapper_callback,
-            result.as_mut_ptr() as *mut ::std::os::raw::c_void,
-            &ctx,
-        );
-        ctx.pop().and_then(|_| unsafe { result.assume_init() })
+        // fn __captured_function(
+        //     callback: unsafe extern "C" fn(
+        //         $userdata: *mut ::std::ffi::c_void,
+        //         $(
+        //           $arg_name: $arg_type,
+        //         )*
+        //     ),
+        //     state: *mut __UserData,
+        //     ctx: &$crate::errors::ErrorContext,
+        // ) {
+        //     $function(callback, state, ctx);
+        // }
 
+        $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
+
+        // add type annotations for compiler
+        __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval })
     }};
 
-    ( | userdata $( : *mut c_void )? ; $($arg_name:ident : $arg_type:ty),* | -> $ret:ty $body:block, $callback:expr $(,)? ) => {{
+    ( | $($arg_name:ident : $arg_type:ty),* ; $userdata:ident : $userdata_type:ty $(,)? | -> $ret:ty $body:block, $callback:expr $(,)? ) => {{
+        type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
         // create a function item that wraps the closure body (so it has a concrete type)
-        #[allow(unused_variables)]
-        fn __captured_fn(userdata: *mut ::std::os::raw::c_void, $($arg_name: $arg_type),*) -> $ret $body
+        unsafe extern "C" fn __captured_fn( $( $arg_name: $arg_type ),*, $userdata: &mut __UserData) -> $ret $body
 
         unsafe extern "C" fn __wrapper_callback(
-            userdata: *mut ::std::os::raw::c_void,
             $(
               $arg_name: $arg_type,
             )*
+            $userdata: *mut ::std::ffi::c_void,
         ) {
-            let result = unsafe { &mut *(userdata as *mut $ret) };
+            unsafe {
+                let ud = &mut *($userdata as *mut __UserData);
+                let stored_retval = &raw mut ud.retval;
 
-            *result = __captured_fn(
-                userdata,
-                $(
-                    $arg_name,
-                )*
-            );
+                let retval = __captured_fn(
+                    $(
+                        $arg_name,
+                    )*
+                    ud,
+                );
+
+                stored_retval.write(retval)
+            }
         }
 
-        // XXX: TODO: what happens if i DO actually use `null_mut` instead of ErrorContext::new? does rust just panic?
-        let mut ctx = crate::errors::ErrorContext::new();
-        let mut result: ::std::mem::MaybeUninit<$ret> = ::std::mem::MaybeUninit::uninit();
+        // $crate::util::wrap::__nix_callback!($userdata_type, $ret, $callback)
+        let mut __ctx = $crate::errors::ErrorContext::new();
+        let mut __state: ::std::mem::MaybeUninit<
+            __UserData
+        > = ::std::mem::MaybeUninit::uninit();
 
-        $callback(
-            __wrapper_callback,
-            result.as_mut_ptr() as *mut ::std::os::raw::c_void,
-            &ctx,
-        );
-        ctx.pop().and_then(|_| unsafe { result.assume_init() })
+        $callback(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
+
+        // add type annotations for compiler
+        let __return: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
+        __return
     }};
 }
 pub(crate) use nix_callback;
 
-pub fn nix_string_callback<F>(callback: F) -> Result<String, NixideError>
-where
-    F: FnOnce(
-        unsafe extern "C" fn(*const c_char, c_uint, *mut c_void),
-        *mut c_void,
-        &ErrorContext,
-    ) -> i32,
-{
-    crate::util::wrap::nix_callback!(
-        |start: *const c_char, n: c_uint ; userdata| -> NixideResult<String> {
-            start.to_utf8_string_n(n as usize)
-        },
-        callback
-    )
+// XXX: TODO: convert these to declarative macros
+macro_rules! nix_string_callback {
+    ($callback:expr $(,)?) => {{
+        $crate::util::wrap::nix_callback!(
+            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint ; userdata: ()| -> $crate::NixideResult<String> {
+                start.to_utf8_string_n(n as usize)
+            },
+            $callback
+        )
+    }};
 }
+pub(crate) use nix_string_callback;
 
-pub fn nix_pathbuf_callback<F>(callback: F) -> Result<PathBuf, NixideError>
-where
-    F: FnOnce(
-        unsafe extern "C" fn(*const c_char, c_uint, *mut c_void),
-        *mut c_void,
-        &ErrorContext,
-    ) -> i32,
-{
-    nix_string_callback(callback).map(::std::path::PathBuf::from)
+macro_rules! nix_pathbuf_callback {
+    ($callback:expr $(,)?) => {{
+        $crate::util::wrap::nix_string_callback!($callback).map(::std::path::PathBuf::from)
+    }};
 }
+pub(crate) use nix_pathbuf_callback;
