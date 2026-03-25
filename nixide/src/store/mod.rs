@@ -36,8 +36,19 @@ pub struct Store {
 }
 
 impl AsInnerPtr<sys::Store> for Store {
+    #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::Store {
         self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::Store {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::Store {
+        unsafe { self.inner.as_mut() }
     }
 }
 

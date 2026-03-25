@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::{sys, util::wrappers::FromC};
+use crate::sys;
 
 /// Nix value types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,8 +29,8 @@ pub enum ValueType {
     External,
 }
 
-impl FromC<sys::ValueType> for ValueType {
-    unsafe fn from_c(value_type: sys::ValueType) -> Self {
+impl From<sys::ValueType> for ValueType {
+    fn from(value_type: sys::ValueType) -> Self {
         match value_type {
             sys::ValueType_NIX_TYPE_THUNK => ValueType::Thunk,
             sys::ValueType_NIX_TYPE_INT => ValueType::Int,

@@ -2,30 +2,40 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
 
 use super::{EvalState, ValueType};
-use crate::errors::{new_nixide_error, ErrorContext, NixideError};
+use crate::errors::{ErrorContext, NixideResult};
 use crate::sys;
-use crate::util::wrappers::{AsInnerPtr, FromC as _};
-use crate::util::AsErr;
+use crate::util::wrappers::AsInnerPtr;
+use crate::util::{panic_issue_call_failed, wrap};
 
 /// A Nix value
 ///
 /// This represents any value in the Nix language, including primitives,
 /// collections, and functions.
-pub struct Value {
+pub struct Value<'a> {
     pub(crate) inner: NonNull<sys::nix_value>,
+    state: &'a EvalState,
 }
 
-impl AsInnerPtr<sys::nix_value> for Value {
+impl<'a> AsInnerPtr<sys::nix_value> for Value<'a> {
+    #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::nix_value {
         self.inner.as_ptr()
     }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::nix_value {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::nix_value {
+        unsafe { self.inner.as_mut() }
+    }
 }
 
-impl Value {
-    pub(crate) unsafe fn new(inner: *mut sys::Value) -> Self {
-        Value {
-            inner: NonNull::new(inner).unwrap(),
-        }
+impl<'a> Value<'a> {
+    pub(crate) fn new(inner: NonNull<sys::nix_value>, state: &'a EvalState) -> Self {
+        Value { inner, state }
     }
 
     /// Force evaluation of this value.
@@ -35,12 +45,11 @@ impl Value {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn force(&mut self, state: &EvalState) -> Result<(), NixideError> {
+    pub fn force(&mut self) -> NixideResult<()> {
         // XXX: TODO: move force and force_deep to the EvalState
-        let ctx = ErrorContext::new();
-
-        unsafe { sys::nix_value_force(ctx.as_ptr(), state.as_ptr(), self.as_ptr()) };
-        ctx.peak()
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_value_force(ctx.as_ptr(), self.state.as_ptr(), self.as_ptr());
+        })
     }
 
     /// Force deep evaluation of this value.
@@ -50,132 +59,39 @@ impl Value {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn force_deep(&mut self, state: &EvalState) -> Result<(), NixideError> {
-        let ctx = ErrorContext::new();
-
-        unsafe { sys::nix_value_force_deep(ctx.as_ptr(), state.as_ptr(), self.as_ptr()) };
-        ctx.peak()
+    pub fn force_deep(&mut self) -> NixideResult<()> {
+        // XXX: TODO: move force and force_deep to the EvalState
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_value_force_deep(ctx.as_ptr(), self.state.as_ptr(), self.as_ptr());
+        })
     }
 
     /// Get the type of this value.
     #[must_use]
     pub fn value_type(&self) -> ValueType {
-        let ctx = ErrorContext::new();
-        let value_type =
-            unsafe { ValueType::from_c(sys::nix_get_type(ctx.as_ptr(), self.as_ptr())) };
         // NOTE: an error here only occurs if `nix_get_type` catches an error,
         // NOTE: which in turn only happens if the `sys::nix_value*` is a null pointer
         // NOTE: or points to an uninitialised `nix_value` struct.
-        ctx.peak().unwrap_or_else(|_| panic!("TODO im sleepy rn"));
-        value_type
+        ValueType::from({
+            wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+                sys::nix_get_type(ctx.as_ptr(), self.as_ptr())
+            })
+            .unwrap_or_else(|err| panic_issue_call_failed!("{}", err))
+        })
     }
 
-    fn expect_type(&self, expected: ValueType) -> Result<(), NixideError> {
-        let got = self.value_type();
-        if got != expected {
-            return Err(new_nixide_error!(
-                InvalidType,
-                expected.to_string(),
-                got.to_string()
-            ));
-        }
-        Ok(())
-    }
-
-    /// Convert this value to an integer.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the value is not an integer.
-    pub fn as_int(&self) -> Result<i64, NixideError> {
-        self.expect_type(ValueType::Int)?;
-
-        let ctx = ErrorContext::new();
-        let result = unsafe { sys::nix_get_int(ctx.as_ptr(), self.as_ptr()) };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(result),
-        }
-    }
-
-    /// Convert this value to a float.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the value is not a float.
-    pub fn as_float(&self) -> Result<f64, NixideError> {
-        self.expect_type(ValueType::Float)?;
-
-        let ctx = ErrorContext::new();
-        let result = unsafe { sys::nix_get_float(ctx.as_ptr(), self.as_ptr()) };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(result),
-        }
-    }
-
-    /// Convert this value to a boolean.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the value is not a boolean.
-    pub fn as_bool(&self) -> Result<bool, NixideError> {
-        self.expect_type(ValueType::Bool)?;
-
-        let ctx = ErrorContext::new();
-        let result = unsafe { sys::nix_get_bool(ctx.as_ptr(), self.as_ptr()) };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(result),
-        }
-    }
-
-    /// Convert this value to a string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the value is not a string.
-    pub fn as_string(&self) -> Result<String, NixideError> {
-        self.expect_type(ValueType::String)?;
-
-        let ctx = ErrorContext::new();
-
-        // For string values, we need to use realised string API
-        let realised_str = unsafe {
-            sys::nix_string_realise(
-                ctx.as_ptr(),
-                self.state.as_ptr(),
-                self.as_ptr(),
-                false, // don't copy more
-            )
-        };
-
-        if realised_str.is_null() {
-            return Err(new_nixide_error!(NullPtr));
-        }
-
-        let buffer_start = unsafe { sys::nix_realised_string_get_buffer_start(realised_str) };
-        let buffer_size = unsafe { sys::nix_realised_string_get_buffer_size(realised_str) };
-        if buffer_start.is_null() {
-            // Clean up realised string
-            unsafe {
-                sys::nix_realised_string_free(realised_str);
-            }
-            return Err(new_nixide_error!(NullPtr));
-        }
-
-        let bytes = unsafe { std::slice::from_raw_parts(buffer_start.cast::<u8>(), buffer_size) };
-        let string = std::str::from_utf8(bytes)
-            .map_err(|_| new_nixide_error!(StringNotUtf8))?
-            .to_owned();
-
-        // Clean up realised string
-        unsafe {
-            sys::nix_realised_string_free(realised_str);
-        }
-
-        Ok(string)
-    }
+    // XXX: TODO: rewrite `expr/value.rs` to make this redundant
+    // fn expect_type(&self, expected: ValueType) -> NixideResult<()> {
+    //     let got = self.value_type();
+    //     if got != expected {
+    //         return Err(new_nixide_error!(
+    //             InvalidType,
+    //             expected.to_string(),
+    //             got.to_string()
+    //         ));
+    //     }
+    //     Ok(())
+    // }
 
     /// Format this value as Nix syntax.
     ///
@@ -186,7 +102,7 @@ impl Value {
     ///
     /// Returns an error if the value cannot be converted to a string
     /// representation.
-    pub fn to_nix_string(&self) -> Result<String, NixideError> {
+    pub fn to_nix_string(&self) -> NixideResult<String> {
         match self.value_type() {
             ValueType::Int => Ok(self.as_int()?.to_string()),
             ValueType::Float => Ok(self.as_float()?.to_string()),

@@ -68,8 +68,19 @@ pub(crate) struct ErrorContext {
 }
 
 impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
+    #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::nix_c_context {
         self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::nix_c_context {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::nix_c_context {
+        unsafe { self.inner.as_mut() }
     }
 }
 

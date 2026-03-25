@@ -5,7 +5,7 @@ pub extern crate libc;
 pub extern crate nixide_sys as sys;
 
 pub(crate) mod errors;
-// mod expr;
+mod expr;
 // mod flake;
 mod stdext;
 mod store;
@@ -14,7 +14,7 @@ mod verbosity;
 mod version;
 
 pub use errors::{NixError, NixideError, NixideResult};
-// pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
+pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
 pub use store::{Store, StorePath};
 pub use verbosity::NixVerbosity;
 pub use version::NixVersion;

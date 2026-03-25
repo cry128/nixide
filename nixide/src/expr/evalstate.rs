@@ -7,8 +7,9 @@ use crate::errors::new_nixide_error;
 use super::Value;
 use crate::errors::ErrorContext;
 use crate::sys;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{NixideError, Store};
+use crate::{NixideResult, Store};
 
 /// Nix evaluation state for evaluating expressions.
 ///
@@ -18,13 +19,23 @@ pub struct EvalState {
     inner: NonNull<sys::EvalState>,
 
     // XXX: TODO: is an `Arc<Store>` necessary or just a `Store`
-    #[allow(dead_code)]
     store: Arc<Store>,
 }
 
 impl AsInnerPtr<sys::EvalState> for EvalState {
+    #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::EvalState {
         self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::EvalState {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::EvalState {
+        unsafe { self.inner.as_mut() }
     }
 }
 
@@ -32,6 +43,11 @@ impl EvalState {
     /// Construct a new EvalState directly from its attributes
     pub(super) fn new(inner: NonNull<sys::EvalState>, store: Arc<Store>) -> Self {
         Self { inner, store }
+    }
+
+    #[inline]
+    pub(crate) unsafe fn store_ref(&self) -> &Store {
+        self.store.as_ref()
     }
 
     /// Evaluate a Nix expression from a string.
@@ -44,24 +60,15 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn eval_from_string(&self, expr: &str, path: &str) -> Result<Value, NixideError> {
+    pub fn eval_from_string(&self, expr: &str, path: &str) -> NixideResult<Value> {
         let expr_c = CString::new(expr).or(Err(new_nixide_error!(StringNulByte)))?;
         let path_c = CString::new(path).or(Err(new_nixide_error!(StringNulByte)))?;
 
-        let ctx = ErrorContext::new();
         // Allocate value for result
-        // XXX: TODO: refactor this code to use `nixide::Value`
-        let value_ptr = unsafe { sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr()) };
-        let value = match ctx.peak() {
-            Some(err) => Err(err),
-            None => match NonNull::new(value_ptr) {
-                Some(inner) => Ok(Value { inner }),
-                None => Err(new_nixide_error!(NullPtr)),
-            },
-        }?;
+        let value = self.new_value()?;
 
         // Evaluate expression
-        unsafe {
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_expr_eval_from_string(
                 ctx.as_ptr(),
                 self.as_ptr(),
@@ -69,11 +76,8 @@ impl EvalState {
                 path_c.as_ptr(),
                 value.as_ptr(),
             );
-        };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(value),
-        }
+            value
+        })
     }
 
     /// Allocate a new value.
@@ -81,16 +85,13 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if value allocation fails.
-    pub fn alloc_value(&self) -> Result<Value, NixideError> {
-        let ctx = ErrorContext::new();
-        let value_ptr = unsafe { sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr()) };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => match NonNull::new(value_ptr) {
-                Some(inner) => Ok(Value { inner }),
-                None => Err(new_nixide_error!(NullPtr)),
-            },
-        }
+    pub(self) fn new_value(&self) -> NixideResult<Value> {
+        // XXX: TODO: should this function be `Value::new` instead?
+        let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr())
+        })?;
+
+        Ok(Value::new(inner, self))
     }
 }
 
