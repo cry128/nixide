@@ -3,6 +3,12 @@
 pub(crate) struct UserData<S, T> {
     pub inner: S,
     pub retval: T,
+
+    #[cfg(debug_assertions)]
+    pub init_inner: bool,
+
+    #[cfg(debug_assertions)]
+    pub init_retval: bool,
 }
 
 impl<S, T> AsMut<UserData<S, T>> for UserData<S, T> {
@@ -11,30 +17,14 @@ impl<S, T> AsMut<UserData<S, T>> for UserData<S, T> {
     }
 }
 
-// pub(crate) trait VoidPtrIsomorphism {
-//     fn as_void_ptr(self) -> *mut c_void;
-
-//     fn from_void_ptr(ptr: *mut c_void) -> Self;
-// }
-
-// impl<S, T> VoidPtrIsomorphism for *mut UserData<S, T> {
-//     fn as_void_ptr(self) -> *mut c_void {
-//         self as *mut c_void
-//     }
-
-//     fn from_void_ptr(ptr: *mut c_void) -> Self {
-//         ptr as Self
-//     }
-// }
-
 impl<S, T> UserData<S, T> {
     /// # Warning
     ///
     /// Ensure `self.retval` has been initialised before unwrapping!
     ///
-    pub unsafe fn unwrap(self) -> (S, T) {
-        (self.inner, self.retval)
-    }
+    // pub unsafe fn unwrap(self) -> (S, T) {
+    //     (self.inner, self.retval)
+    // }
 
     pub unsafe fn as_mut_ptr(&mut self) -> *mut Self {
         self as *mut Self
@@ -62,7 +52,6 @@ macro_rules! nonnull {
         }
     }};
 }
-use std::ffi::c_void;
 
 pub(crate) use nonnull;
 
@@ -146,7 +135,9 @@ macro_rules! nix_callback {
 
         $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
 
-        __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval })
+        // type annotations for compiler
+        let __result: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
+        __result
     }};
 }
 pub(crate) use nix_callback;

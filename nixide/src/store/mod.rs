@@ -197,10 +197,9 @@ impl Store {
     ///
     /// ```no_run
     /// # use std::sync::Arc;
-    /// # use nixide::{Context, Store};
+    /// # use nixide::Store;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let ctx = Arc::new(Context::new()?);
-    /// let store = Store::open(&ctx, None)?;
+    /// let store = Store::open(None)?;
     /// let path = store.store_path("/nix/store/...")?;
     /// # Ok(())
     /// # }

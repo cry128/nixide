@@ -7,9 +7,9 @@ use crate::errors::{new_nixide_error, ErrorContext};
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::NixideError;
+use crate::NixideResult;
 
-use nixide_sys::{self as sys, nix_err_NIX_OK};
+use nixide_sys as sys;
 
 /// A path in the Nix store.
 ///
@@ -36,7 +36,7 @@ impl StorePath {
     /// # Errors
     ///
     /// Returns an error if the path cannot be parsed.
-    pub fn parse(store: &Store, path: &str) -> Result<Self, NixideError> {
+    pub fn parse(store: &Store, path: &str) -> NixideResult<Self> {
         let c_path = CString::new(path).or(Err(new_nixide_error!(StringNulByte)))?;
 
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
@@ -44,6 +44,10 @@ impl StorePath {
         })?;
 
         Ok(Self { inner })
+    }
+
+    pub fn fake_path(store: &Store) -> NixideResult<Self> {
+        Self::parse(store, "/nix/store/00000000000000000000000000000000-fake")
     }
 
     /// Get the name component of the store path.
@@ -55,11 +59,12 @@ impl StorePath {
     ///
     /// Returns an error if the name cannot be retrieved.
     ///
-    pub fn name(&self) -> Result<String, NixideError> {
+    pub fn name(&self) -> NixideResult<String> {
         wrap::nix_string_callback!(|callback, userdata: *mut __UserData, _| unsafe {
             sys::nix_store_path_name(self.inner.as_ptr(), Some(callback), userdata as *mut c_void);
             // NOTE: nix_store_path_name doesn't return nix_err, so we force it to return successfully
-            nix_err_NIX_OK
+            // XXX: NOTE: now `nix_string_callback` is a macro this isn't necessary
+            // sys::nix_err_NIX_OK
         })
     }
 
@@ -84,7 +89,7 @@ impl StorePath {
     ///
     /// * `store` - The store containing the path
     ///
-    pub fn real_path(&self, store: &Store) -> Result<PathBuf, NixideError> {
+    pub fn real_path(&self, store: &Store) -> NixideResult<PathBuf> {
         wrap::nix_pathbuf_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_real_path(

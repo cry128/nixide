@@ -1,53 +1,82 @@
 use serial_test::serial;
 
-use super::*;
+use super::{Store, StorePath};
+use crate::errors::ErrorContext;
+use crate::sys;
+use crate::util::wrappers::AsInnerPtr as _;
 
 #[test]
 #[serial]
 fn test_store_opening() {
+    let mut ctx = ErrorContext::new();
+    unsafe {
+        sys::nix_libutil_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libutil_init failed with bad ErrorContext");
+        sys::nix_libstore_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libstore_init failed with bad ErrorContext");
+        sys::nix_libexpr_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libexpr_init failed with bad ErrorContext");
+    };
+
     let _store = Store::open(None).expect("Failed to open store");
 }
 
 #[test]
 #[serial]
 fn test_store_path_parse() {
+    let mut ctx = ErrorContext::new();
+    unsafe {
+        sys::nix_libutil_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libutil_init failed with bad ErrorContext");
+        sys::nix_libstore_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libstore_init failed with bad ErrorContext");
+        sys::nix_libexpr_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libexpr_init failed with bad ErrorContext");
+    };
+
     let store = Store::open(None).expect("Failed to open store");
 
     // Try parsing a well-formed store path
-    // Note: This may fail if the path doesn't exist in the store
-    let result = StorePath::parse(&store, "/nix/store/00000000000000000000000000000000-test");
-
-    // We don't assert success here because the path might not exist
-    // This test mainly checks that the API works correctly
-    match result {
-        Ok(_path) => {
-            // Successfully parsed the path
-        }
-        Err(_) => {
-            // Path doesn't exist or is invalid, which is expected
-        }
-    }
+    let result = StorePath::fake_path(&store);
+    result.expect("idk hopefully this fails");
 }
 
 #[test]
 #[serial]
 fn test_store_path_clone() {
+    let mut ctx = ErrorContext::new();
+    unsafe {
+        sys::nix_libutil_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libutil_init failed with bad ErrorContext");
+        sys::nix_libstore_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libstore_init failed with bad ErrorContext");
+        sys::nix_libexpr_init(ctx.as_ptr());
+        ctx.pop()
+            .expect("nix_libexpr_init failed with bad ErrorContext");
+    };
+
     let store = Store::open(None).expect("Failed to open store");
 
     // Try to get a valid store path by parsing
-    // Note: This test is somewhat limited without a guaranteed valid path
-    if let Ok(path) = StorePath::parse(&store, "/nix/store/00000000000000000000000000000000-test") {
-        let cloned = path.clone();
+    let path = StorePath::fake_path(&store).expect("Failed to create `StorePath::fake_path`");
+    let cloned = path.clone();
 
-        // Assert that the cloned path has the same name as the original
-        let original_name = path.name().expect("Failed to get original path name");
-        let cloned_name = cloned.name().expect("Failed to get cloned path name");
+    // Assert that the cloned path has the same name as the original
+    let original_name = path.name().expect("Failed to get original path name");
+    let cloned_name = cloned.name().expect("Failed to get cloned path name");
 
-        assert_eq!(
-            original_name, cloned_name,
-            "Cloned path should have the same name as original"
-        );
-    }
+    assert_eq!(
+        original_name, cloned_name,
+        "Cloned path should have the same name as original"
+    );
 }
 
 // Note: test_realize is not included because it requires a valid store path
