@@ -23,7 +23,7 @@ use std::result::Result;
 
 use crate::errors::{new_nixide_error, ErrorContext};
 use crate::stdext::CCharPtrExt;
-use crate::util::wrap::{self, UserData};
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 use crate::{NixideError, NixideResult};
 use nixide_sys as sys;
@@ -87,96 +87,42 @@ impl Store {
     pub fn realise<F>(
         &self,
         path: &StorePath,
-        callback: fn(&str, &StorePath),
-    ) -> NixideResult<(String, StorePath)> {
-        // // Type alias for our userdata: (outputs vector, context)
-        // type Userdata = (
-        //     Vec<(String, StorePath)>,
-        //     Arc<ErrorContext>,
-        //     fn(&str, &StorePath),
-        // );
-        //
-        // // Callback function that will be called for each realized output
-        // unsafe extern "C" fn realise_callback(
-        //     userdata: *mut c_void,
-        //     out_name_ptr: *const c_char,
-        //     out_path_ptr: *const sys::StorePath,
-        // ) {
-        //     // SAFETY: userdata is a valid pointer to our (Vec, Arc<Context>) tuple
-        //     let (outputs, ctx, callback) = unsafe { &mut *(userdata as *mut Userdata) };
-        //
-        //     // SAFETY: outname is a valid C string from Nix
-        //     let output_name = if !out_name_ptr.is_null() {
-        //         unsafe { CStr::from_ptr(out_name_ptr).to_string_lossy().into_owned() }
-        //     } else {
-        //         String::from("out") // Default output name
-        //     };
-        //
-        //     // SAFETY: out is a valid StorePath pointer from Nix, we need to clone it
-        //     // because Nix owns the original and may free it after the callback
-        //     if !out_path_ptr.is_null() {
-        //         let cloned_path_ptr =
-        //             unsafe { sys::nix_store_path_clone(out_path_ptr as *mut sys::StorePath) };
-        //         if let Some(inner) = NonNull::new(cloned_path_ptr) {
-        //             let store_path = StorePath { inner };
-        //
-        //             callback(output_name.as_ref(), &store_path);
-        //
-        //             outputs.push((output_name, store_path));
-        //         }
-        //     }
-        // }
-        //
-        // // Create userdata with empty outputs vector and context
-        // let mut userdata: Userdata = (Vec::new(), Arc::new(ErrorContext::new()), callback);
-        // let userdata_ptr = &mut userdata as *mut Userdata as *mut std::os::raw::c_void;
-        //
-        // // SAFETY: All pointers are valid, callback is compatible with the FFI signature
-        // // - self._context is valid for the duration of this call
-        // // - self.inner is valid (checked in Store::open)
-        // // - path.inner is valid (checked in StorePath::parse)
-        // // - userdata_ptr points to valid stack memory
-        // // - realize_callback matches the expected C function signature
-        // let err = unsafe {
-        //     sys::nix_store_realise(
-        //         ctx.as_ptr(),
-        //         self.inner.as_ptr(),
-        //         path.as_ptr(),
-        //         userdata_ptr,
-        //         Some(realise_callback),
-        //     )
-        // };
-
+        user_callback: fn(&str, &StorePath),
+    ) -> NixideResult<Vec<(String, StorePath)>> {
         wrap::nix_callback!(
             |; userdata: fn(&str, &StorePath);
              output_name_ptr: *const c_char,
              output_path_ptr: *const sys::StorePath|
-             -> NixideResult<(String, StorePath)> {
+             -> Vec<(String, StorePath)> {
                 // XXX: TODO: test to see if this is ever null ("out" as a default feels unsafe...)
-                // let output_name = output_name_ptr.to_utf8_string().unwrap_or("out".to_owned());
                 // NOTE: this also ensures `output_name_ptr` isn't null
-                let output_name = output_name_ptr.to_utf8_string()?;
+                let output_name = output_name_ptr.to_utf8_string().expect("IDK1");
 
                 let inner = wrap::nix_ptr_fn!(|ctx| unsafe {
                     sys::nix_store_path_clone(output_path_ptr as *mut sys::StorePath)
-                })?;
+                }).expect("IDK2");
                 let store_path = StorePath { inner };
 
                 let callback = unsafe { (*userdata).inner };
                 callback(output_name.as_ref(), &store_path);
 
-                Ok((output_name, store_path))
+                (output_name, store_path);
             },
             |callback,
-             state: *mut UserData<fn(&str, &StorePath), NixideResult<(String, StorePath)>>,
+             state: *mut __UserData,
              ctx: &ErrorContext| unsafe {
+                // register userdata
+                // WARNING: Using `write` instead of assignment via `=`
+                // WARNING: to not call `drop` on the old, uninitialized value.
+                (&raw mut (*state).inner).write(user_callback);
+
                 sys::nix_store_realise(
                     ctx.as_ptr(),
                     self.inner.as_ptr(),
                     path.as_ptr(),
                     (*state).inner_ptr() as *mut c_void,
                     Some(callback),
-                )
+                );
             }
         )
     }

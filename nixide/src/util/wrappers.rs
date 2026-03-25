@@ -1,17 +1,23 @@
-use crate::NixideError;
-
-pub trait AsErr<T> {
-    fn as_err(self) -> Result<(), T>;
-}
-
-impl AsErr<NixideError> for Option<NixideError> {
-    fn as_err(self) -> Result<(), NixideError> {
-        match self {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
-    }
-}
+// use crate::NixideError;
+//
+// pub trait AsErr<T> {
+//     fn as_err(self) -> Result<(), T>;
+// }
+//
+// impl AsErr<NixideError> for Option<NixideError> {
+//     fn as_err(self) -> Result<(), NixideError> {
+//         match self {
+//             Some(err) => Err(err),
+//             None => Ok(()),
+//         }
+//     }
+// }
+//
+// pub trait FromC<T> {
+//     /// Creates a new instance of [Self] from the underlying
+//     /// libnix C type [T].
+//     unsafe fn from_c(value: T) -> Self;
+// }
 
 pub trait AsInnerPtr<T> {
     /// Get a pointer to the underlying (`inner`) `libnix` C struct.
@@ -22,10 +28,4 @@ pub trait AsInnerPtr<T> {
     /// marked as such intentionally to force calls to be wrapped
     /// in `unsafe` blocks for clarity.
     unsafe fn as_ptr(&self) -> *mut T;
-}
-
-pub trait FromC<T> {
-    /// Creates a new instance of [Self] from the underlying
-    /// libnix C type [T].
-    unsafe fn from_c(value: T) -> Self;
 }

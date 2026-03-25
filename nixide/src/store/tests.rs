@@ -16,9 +16,6 @@ fn test_store_opening() {
         sys::nix_libstore_init(ctx.as_ptr());
         ctx.pop()
             .expect("nix_libstore_init failed with bad ErrorContext");
-        sys::nix_libexpr_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libexpr_init failed with bad ErrorContext");
     };
 
     let _store = Store::open(None).expect("Failed to open store");
@@ -35,9 +32,6 @@ fn test_store_path_parse() {
         sys::nix_libstore_init(ctx.as_ptr());
         ctx.pop()
             .expect("nix_libstore_init failed with bad ErrorContext");
-        sys::nix_libexpr_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libexpr_init failed with bad ErrorContext");
     };
 
     let store = Store::open(None).expect("Failed to open store");
@@ -58,9 +52,6 @@ fn test_store_path_clone() {
         sys::nix_libstore_init(ctx.as_ptr());
         ctx.pop()
             .expect("nix_libstore_init failed with bad ErrorContext");
-        sys::nix_libexpr_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libexpr_init failed with bad ErrorContext");
     };
 
     let store = Store::open(None).expect("Failed to open store");

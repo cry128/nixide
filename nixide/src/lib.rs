@@ -1,5 +1,9 @@
 // #![warn(missing_docs)]
 
+// #[allow(unused_extern_crates)]
+pub extern crate libc;
+pub extern crate nixide_sys as sys;
+
 pub(crate) mod errors;
 // mod expr;
 // mod flake;
@@ -14,8 +18,6 @@ pub use errors::{NixError, NixideError, NixideResult};
 pub use store::{Store, StorePath};
 pub use verbosity::NixVerbosity;
 pub use version::NixVersion;
-
-pub use nixide_sys as sys;
 
 /// Sets the verbosity level
 ///

@@ -137,15 +137,15 @@ impl Display for NixideError {
     }
 }
 
-pub trait AsErr<T> {
-    fn as_err(self) -> Result<(), T>;
-}
+// pub trait AsErr<T> {
+//     fn as_err(self) -> Result<(), T>;
+// }
 
-impl AsErr<NixideError> for Option<NixideError> {
-    fn as_err(self) -> Result<(), NixideError> {
-        match self {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
-    }
-}
+// impl AsErr<NixideError> for Option<NixideError> {
+//     fn as_err(self) -> Result<(), NixideError> {
+//         match self {
+//             Some(err) => Err(err),
+//             None => Ok(()),
+//         }
+//     }
+// }

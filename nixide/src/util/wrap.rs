@@ -4,6 +4,8 @@ pub(crate) struct UserData<S, T> {
     pub inner: S,
     pub retval: T,
 
+    // XXX: TODO: write impl functions to set and get these values,
+    // XXX: TODO: and another one to unwrap a `MaybeUninit<UserData<S, T>>`
     #[cfg(debug_assertions)]
     pub init_inner: bool,
 
@@ -18,14 +20,6 @@ impl<S, T> AsMut<UserData<S, T>> for UserData<S, T> {
 }
 
 impl<S, T> UserData<S, T> {
-    /// # Warning
-    ///
-    /// Ensure `self.retval` has been initialised before unwrapping!
-    ///
-    // pub unsafe fn unwrap(self) -> (S, T) {
-    //     (self.inner, self.retval)
-    // }
-
     pub unsafe fn as_mut_ptr(&mut self) -> *mut Self {
         self as *mut Self
     }
@@ -36,10 +30,6 @@ impl<S, T> UserData<S, T> {
             &raw mut (*ptr).inner
         }
     }
-
-    // pub unsafe fn retval_ptr(&mut self) -> *mut c_void {
-    //     &mut self.retval as *mut T as *mut c_void
-    // }
 }
 
 macro_rules! nonnull {
@@ -73,42 +63,27 @@ macro_rules! nix_ptr_fn {
 }
 pub(crate) use nix_ptr_fn;
 
-macro_rules! __nix_callback {
-    ($userdata_type:ty, $ret:ty, $callback:expr) => {{
-        let mut __ctx = $crate::errors::ErrorContext::new();
-        let mut __state: ::std::mem::MaybeUninit<__UserData> = ::std::mem::MaybeUninit::uninit();
-
-        $callback(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
-
-        // add type annotations for compiler
-        let __return: $ret = __ctx
-            .pop()
-            .and_then(|_| unsafe { __state.assume_init().retval });
-        __return
-    }};
-}
-#[allow(unused_imports)] // XXX: TODO: replace the tail of `nix_callback!` with this macro
-pub(crate) use __nix_callback;
-
 /// `libnix` functions consistently either expect the `userdata`/`user_data` (inconsistently named in the API...)
 /// field to be the first or last parameter (differs between function). The `nix_callback!` macro allows the
 /// position to be specified by either the following syntax:
 ///
 /// ```rs
-/// nix_callback(userdata; ...); // first parameter
-/// nix_callback(...; userdata); // last parameter
+/// nix_callback!(; userdata; ...); // first parameter
+/// nix_callback!(...; userdata; ); // last parameter
 /// ```
 ///
 macro_rules! nix_callback {
     ( | $( $($pre:ident : $pre_ty:ty),+ $(,)? )? ; $userdata:ident : $userdata_type:ty ; $( $($post:ident : $post_ty:ty),+ $(,)? )? | -> $ret:ty $body:block, $function:expr $(,)? ) => {{
         type __UserData = $crate::util::wrap::UserData<$userdata_type, $ret>;
         // create a function item that wraps the closure body (so it has a concrete type)
+        // WARNING: this function must have no return type, use the `UserData.inner`
+        // WARNING: field instead as an `out` pointer.
         #[allow(unused_variables)]
         unsafe extern "C" fn __captured_fn(
             $($( $pre: $pre_ty, )*)?
             $userdata: *mut __UserData,
             $($( $post: $post_ty, )*)?
-        ) -> $ret { $body }
+        ) { $body }
 
         unsafe extern "C" fn __wrapper_callback(
             $($( $pre: $pre_ty, )*)?
@@ -116,17 +91,12 @@ macro_rules! nix_callback {
             $($( $post: $post_ty, )*)?
         ) {
             unsafe {
-                let userdata_ = $userdata as *mut __UserData;
-                let stored_retval = &raw mut (*userdata_).retval;
-
-                let retval =
-                    __captured_fn(
-                        $($( $pre, )*)?
-                        userdata_,
-                        $($( $post, )*)?
-                    );
-
-                stored_retval.write(retval)
+                __captured_fn(
+                    $($( $pre, )*)?
+                    // userdata_,
+                    $userdata as *mut __UserData,
+                    $($( $post, )*)?
+                );
             }
         }
 
@@ -136,21 +106,35 @@ macro_rules! nix_callback {
         $function(__wrapper_callback, __state.as_mut_ptr(), &__ctx);
 
         // type annotations for compiler
-        let __result: $ret = __ctx.pop().and_then(|_| unsafe { __state.assume_init().retval });
-        __result
+        let __return: $crate::NixideResult<$ret> = __ctx.pop().and_then(|_| ::std::result::Result::Ok(unsafe { __state.assume_init().retval }));
+        __return
     }};
 }
 pub(crate) use nix_callback;
 
-// XXX: TODO: convert these to declarative macros
 macro_rules! nix_string_callback {
     ($function:expr $(,)?) => {{
-        $crate::util::wrap::nix_callback!(
-            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> $crate::NixideResult<String> {
-                $crate::stdext::CCharPtrExt::to_utf8_string_n(start, n as usize)
+        #[repr(C)]
+        struct __ReturnType {
+            start: *const ::std::ffi::c_char,
+            n: ::std::ffi::c_uint,
+        }
+
+        let __result = $crate::util::wrap::nix_callback!(
+            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> (*const ::std::ffi::c_char, ::std::ffi::c_uint) {
+                unsafe {
+                    let retval = &raw mut (*userdata).retval;
+                    retval.write((start, n))
+                }
             },
             $function
-        )
+        );
+
+        __result.and_then(|(start, n)| {
+            let __return = $crate::stdext::CCharPtrExt::to_utf8_string_n(start, n as usize);
+
+            __return
+        })
     }};
 }
 pub(crate) use nix_string_callback;

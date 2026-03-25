@@ -9,10 +9,10 @@ macro_rules! panic_issue {
 
 macro_rules! panic_issue_call_failed {
     () => {{
-        crate::util::panic_issue!("[nixide] call to `{}` failed", stdext::debug_name!())
+        crate::util::panic_issue!("[nixide] call to `{}` failed", $crate::stdext::debug_name!())
     }};
     ($($arg:expr),*) => {{
-        crate::util::panic_issue!("[nixide] call to `{}` failed with \"{}\"", stdext::debug_name!(), format!($($arg),*))
+        crate::util::panic_issue!("[nixide] call to `{}` failed with \"{}\"", $crate::stdext::debug_name!(), format!($($arg),*))
     }};
 }
 
