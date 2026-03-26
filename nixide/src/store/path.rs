@@ -4,12 +4,11 @@ use std::ptr::NonNull;
 
 use super::Store;
 use crate::errors::{new_nixide_error, ErrorContext};
+use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 use crate::NixideResult;
-
-use nixide_sys as sys;
 
 /// A path in the Nix store.
 ///
@@ -20,8 +19,19 @@ pub struct StorePath {
 }
 
 impl AsInnerPtr<sys::StorePath> for StorePath {
+    #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::StorePath {
         self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::StorePath {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::StorePath {
+        unsafe { self.inner.as_mut() }
     }
 }
 

@@ -10,7 +10,7 @@ pub trait AsInnerPtr<T> {
 
     /// Returns a shared reference to the inner `libnix` C struct.
     ///
-    /// For the mutable counterpart see [AsInnerPtr<T>::as_mut].
+    /// For the mutable counterpart see [Self::as_mut].
     ///
     /// # Safety
     ///
@@ -21,7 +21,7 @@ pub trait AsInnerPtr<T> {
 
     /// Returns a unique reference to the inner `libnix` C struct.
     ///
-    /// For the shared counterpart see [AsInnerPtr<T>::as_ref].
+    /// For the shared counterpart see [Self::as_ref].
     ///
     /// # Safety
     ///

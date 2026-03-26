@@ -23,10 +23,10 @@ use std::result::Result;
 
 use crate::errors::{new_nixide_error, ErrorContext};
 use crate::stdext::CCharPtrExt;
+use crate::sys;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 use crate::{NixideError, NixideResult};
-use nixide_sys as sys;
 
 /// Nix store for managing packages and derivations.
 ///
