@@ -1,11 +1,12 @@
-use std::ptr::NonNull;
+use std::ffi::{c_char, CStr, CString};
+use std::ptr::{self, NonNull};
 use std::sync::Arc;
 
 use super::EvalState;
 use crate::errors::{ErrorContext, NixideResult};
 use crate::sys;
-use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::util::{panic_issue_call_failed, wrap};
 use crate::Store;
 
 /// Builder for Nix evaluation state.
@@ -49,6 +50,9 @@ impl EvalStateBuilder {
             sys::nix_eval_state_builder_new(ctx.as_ptr(), store.as_ptr())
         })?;
 
+        sys::nix_eval_state_builder_load(context, builder);
+        // sys::nix_flake_settings_add_to_eval_state_builder(context, settings, builder);
+
         Ok(EvalStateBuilder {
             inner,
             store: Arc::clone(store),
@@ -72,6 +76,50 @@ impl EvalStateBuilder {
         })?;
 
         Ok(EvalState::new(inner, self.store.clone()))
+    }
+
+    // XXX: TODO
+    // fn set_flake_settings(FlakeSettings) { }
+
+    fn set_lookup_path<P: AsRef<str>>(self, paths: Vec<P>) -> NixideResult<Self> {
+        let paths_len = paths.len();
+        let paths_capacity = paths.capacity();
+
+        let mut ptrs: Vec<*const c_char> = paths
+            .into_iter()
+            .map(|p| {
+                CString::new(p.as_ref())
+                    .unwrap_or_else(|err| {
+                        panic_issue_call_failed!(
+                            "Given string {} contains a NUL byte ({})",
+                            p.as_ref(),
+                            err
+                        )
+                    })
+                    .into_raw() as *const c_char
+            })
+            .collect();
+
+        ptrs.push(ptr::null());
+
+        // Leak the Vec and return as mutable pointer
+        let ptr = ptrs.as_mut_ptr();
+        std::mem::forget(ptrs);
+
+        let result = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_eval_state_builder_set_lookup_path(ctx.as_ptr(), self.as_ptr(), ptr);
+        })
+        .map(|()| self);
+
+        unsafe {
+            Vec::from_raw_parts(ptr, paths_len, paths_capacity)
+                .into_iter()
+                .map(|p| {
+                    _ = CString::from_raw(p as *mut c_char);
+                })
+        };
+
+        result
     }
 }
 
