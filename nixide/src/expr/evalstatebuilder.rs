@@ -77,9 +77,8 @@ impl EvalStateBuilder {
 
 impl Drop for EvalStateBuilder {
     fn drop(&mut self) {
-        // SAFETY: We own the builder and it's valid until drop
         unsafe {
-            sys::nix_eval_state_builder_free(self.inner.as_ptr());
+            sys::nix_eval_state_builder_free(self.as_ptr());
         }
     }
 }

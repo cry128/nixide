@@ -71,7 +71,7 @@ impl StorePath {
     ///
     pub fn name(&self) -> NixideResult<String> {
         wrap::nix_string_callback!(|callback, userdata: *mut __UserData, _| unsafe {
-            sys::nix_store_path_name(self.inner.as_ptr(), Some(callback), userdata as *mut c_void);
+            sys::nix_store_path_name(self.as_ptr(), Some(callback), userdata as *mut c_void);
             // NOTE: nix_store_path_name doesn't return nix_err, so we force it to return successfully
             // XXX: NOTE: now `nix_string_callback` is a macro this isn't necessary
             // sys::nix_err_NIX_OK

@@ -182,8 +182,6 @@ impl ErrorContext {
     /// of `nix_c_context` must be careful to check the `last_err_code` regularly.
     pub fn clear(&mut self) {
         unsafe {
-            // NOTE: previous nixops4 used the line: (maybe for compatability with old versions?)
-            // sys::nix_set_err_msg(self.inner.as_ptr(), sys::nix_err_NIX_OK, c"".as_ptr());
             sys::nix_clear_err(self.as_ptr());
         }
     }
@@ -351,7 +349,7 @@ impl ErrorContext {
 impl Drop for ErrorContext {
     fn drop(&mut self) {
         unsafe {
-            sys::nix_c_context_free(self.inner.as_ptr());
+            sys::nix_c_context_free(self.as_ptr());
         }
     }
 }

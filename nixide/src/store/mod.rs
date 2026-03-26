@@ -129,7 +129,7 @@ impl Store {
 
                 sys::nix_store_realise(
                     ctx.as_ptr(),
-                    self.inner.as_ptr(),
+                    self.as_ptr(),
                     path.as_ptr(),
                     (*state).inner_ptr() as *mut c_void,
                     Some(callback),
@@ -173,7 +173,7 @@ impl Store {
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_version(
                     ctx.as_ptr(),
-                    self.inner.as_ptr(),
+                    self.as_ptr(),
                     Some(callback),
                     userdata as *mut c_void,
                 )
@@ -187,7 +187,7 @@ impl Store {
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_uri(
                     ctx.as_ptr(),
-                    self.inner.as_ptr(),
+                    self.as_ptr(),
                     Some(callback),
                     userdata as *mut c_void,
                 )
@@ -200,7 +200,7 @@ impl Store {
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_storedir(
                     ctx.as_ptr(),
-                    self.inner.as_ptr(),
+                    self.as_ptr(),
                     Some(callback),
                     userdata as *mut c_void,
                 )
@@ -242,7 +242,7 @@ impl Store {
 impl Drop for Store {
     fn drop(&mut self) {
         unsafe {
-            sys::nix_store_free(self.inner.as_ptr());
+            sys::nix_store_free(self.as_ptr());
         }
     }
 }

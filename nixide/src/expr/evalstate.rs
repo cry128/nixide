@@ -97,9 +97,8 @@ impl EvalState {
 
 impl Drop for EvalState {
     fn drop(&mut self) {
-        // SAFETY: We own the state and it's valid until drop
         unsafe {
-            sys::nix_state_free(self.inner.as_ptr());
+            sys::nix_state_free(self.as_ptr());
         }
     }
 }
