@@ -113,3 +113,18 @@ impl Display for NixError {
         }
     }
 }
+
+impl NixError {
+    pub fn err_code(&self) -> sys::nix_err {
+        match self {
+            NixError::Overflow => sys::nix_err_NIX_ERR_OVERFLOW,
+            NixError::KeyNotFound(_) => sys::nix_err_NIX_ERR_NIX_ERROR,
+            NixError::ExprEval {
+                name: _,
+                info_msg: _,
+            } => sys::nix_err_NIX_ERR_NIX_ERROR,
+            NixError::Unknown => sys::nix_err_NIX_ERR_UNKNOWN,
+            NixError::Undocumented(err) => err.clone(),
+        }
+    }
+}

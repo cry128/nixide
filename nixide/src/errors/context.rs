@@ -26,7 +26,7 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use super::{NixError, NixideResult};
-use crate::stdext::CCharPtrExt as _;
+use crate::stdext::{AsCPtr as _, CCharPtrExt as _};
 use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
@@ -62,8 +62,8 @@ use crate::util::wrappers::AsInnerPtr;
 /// ```c
 /// assert(*(nix_err*)ctx == NIX_OK);
 /// ```
+///
 pub(crate) struct ErrorContext {
-    // XXX: TODO: add a RwLock to this (maybe Arc<RwLock>? or is that excessive?)
     inner: NonNull<sys::nix_c_context>,
 }
 
@@ -92,6 +92,7 @@ impl Into<NixideResult<()>> for &ErrorContext {
     ///
     /// This function will panic in the event that `value != sys::nix_err_NIX_OK`
     /// but that `context.get_code() == sys::nix_err_NIX_OK`
+    ///
     fn into(self) -> NixideResult<()> {
         let inner = match self.get_err() {
             Some(err) => err,
@@ -132,37 +133,22 @@ impl ErrorContext {
     ///
     /// Returns an error if no memory can be allocated for
     /// the underlying [sys::nix_c_context] struct.
+    ///
     pub fn new() -> Self {
         match NonNull::new(unsafe { sys::nix_c_context_create() }) {
             Some(inner) => ErrorContext { inner },
             None => panic!("[nixide] CRITICAL FAILURE: Out-Of-Memory condition reached - `sys::nix_c_context_create` allocation failed!"),
         }
-
-        // Initialize required libraries
-        // XXX: TODO: move this to a separate init function (maybe a Nix::init() function)
-        // unsafe {
-        //     NixErrorCode::from(
-        //         sys::nix_libutil_init(ctx.inner.as_ptr()),
-        //         "nix_libutil_init",
-        //     )?;
-        //     NixErrorCode::from(
-        //         sys::nix_libstore_init(ctx.inner.as_ptr()),
-        //         "nix_libstore_init",
-        //     )?;
-        //     NixErrorCode::from(
-        //         sys::nix_libexpr_init(ctx.inner.as_ptr()),
-        //         "nix_libexpr_init",
-        //     )?;
-        // };
     }
 
     /// Check the error code and return an error if it's not `NIX_OK`.
+    ///
     pub fn peak(&self) -> NixideResult<()> {
         self.into()
     }
 
-    ///
     /// Equivalent to running `self.peak()` then `self.clear()`
+    ///
     pub fn pop(&mut self) -> NixideResult<()> {
         self.peak().and_then(|_| Ok(self.clear()))
     }
@@ -204,24 +190,32 @@ impl ErrorContext {
     /// }
     /// ```
     ///
-    pub fn set_err(&self, err: NixError, msg: &str) {
+    #[allow(unused)]
+    pub fn set_err(&self, err: NixError, msg: &str) -> NixideResult<()> {
         let ptr = unsafe { self.as_ptr() };
         assert!(!ptr.is_null(), "");
 
-        sys::nix_set_err_msg(ptr, err.into())
+        unsafe {
+            sys::nix_set_err_msg(ptr, err.err_code(), msg.as_c_ptr()?);
+        }
+
+        Ok(())
     }
 
     /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
+    ///
     /// ```cpp
     /// nix_err nix_err_code(const nix_c_context * read_context)
     /// {
     ///     return read_context->last_err_code;
     /// }
     /// ```
+    ///
     /// This function **never fails**.
-    pub(super) fn get_err(&self) -> Option<sys::nix_err> {
+    ///
+    fn get_err(&self) -> Option<sys::nix_err> {
         let err = unsafe { sys::nix_err_code(self.as_ptr()) };
 
         match err {
@@ -233,6 +227,7 @@ impl ErrorContext {
     /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
+    ///
     /// ```cpp
     /// const char * nix_err_msg(nix_c_context * context, const nix_c_context * read_context, unsigned int * n)
     /// {
@@ -249,6 +244,7 @@ impl ErrorContext {
     /// ```
     ///
     /// # Note
+    ///
     /// On failure [sys::nix_err_name] does the following if the error
     /// has the error code [sys::nix_err_NIX_OK]:
     /// ```cpp
@@ -257,7 +253,8 @@ impl ErrorContext {
     /// ```
     /// Hence we can just test whether the returned pointer is a `NULL` pointer,
     /// and avoid passing in a [sys::nix_c_context] struct.
-    pub(super) fn get_msg(&self) -> Option<String> {
+    ///
+    fn get_msg(&self) -> Option<String> {
         let ctx = ErrorContext::new();
         unsafe {
             // NOTE: an Err here only occurs when `self.get_code() == Ok(())`
@@ -298,12 +295,14 @@ impl ErrorContext {
     /// `nix_set_err_msg` will cause undefined behaviour if `context` is a null pointer (see below)
     /// due to [https://github.com/rust-lang/rust-bindgen/issues/1208].
     /// So we should never assigned it [std::ptr::null_mut].
+    ///
     /// ```cpp
     /// if (context == nullptr) {
     ///     throw nix::Error("Nix C api error: %s", msg);
     /// }
     /// ```
-    pub(super) fn get_nix_err_name(&self) -> Option<String> {
+    ///
+    fn get_nix_err_name(&self) -> Option<String> {
         #[allow(unused_unsafe)] // XXX: TODO: remove this `unused_unsafe`
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
@@ -349,12 +348,14 @@ impl ErrorContext {
     /// `nix_set_err_msg` will cause undefined behaviour if `context` is a null pointer (see below)
     /// due to [https://github.com/rust-lang/rust-bindgen/issues/1208].
     /// So we should never assigned it [std::ptr::null_mut].
+    ///
     /// ```cpp
     /// if (context == nullptr) {
     ///     throw nix::Error("Nix C api error: %s", msg);
     /// }
     /// ```
-    pub(super) fn get_nix_err_info_msg(&self) -> Option<String> {
+    ///
+    fn get_nix_err_info_msg(&self) -> Option<String> {
         #[allow(unused_unsafe)] // XXX: TODO: remove this `unused_unsafe`
         unsafe {
             // NOTE: an Err here only occurs when "Last error was not a nix error"
