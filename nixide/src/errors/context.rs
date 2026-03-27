@@ -180,10 +180,35 @@ impl ErrorContext {
     /// `nix_clear_err` only modifies the `last_err_code`, it does not
     /// clear all attributes of a `nix_c_context` struct. Hence all uses
     /// of `nix_c_context` must be careful to check the `last_err_code` regularly.
+    ///
     pub fn clear(&mut self) {
         unsafe {
             sys::nix_clear_err(self.as_ptr());
         }
+    }
+    /// This function never fails.
+    /// Nixide will always guarantee `context != nullptr`.
+    ///
+    /// # Nix C++ API Internals
+    ///
+    /// ```cpp
+    /// nix_err nix_set_err_msg(nix_c_context * context, nix_err err, const char * msg)
+    /// {
+    ///     if (context == nullptr) {
+    ///         // todo last_err_code
+    ///         throw nix::Error("Nix C api error: %s", msg);
+    ///     }
+    ///     context->last_err_code = err;
+    ///     context->last_err = msg;
+    ///     return err;
+    /// }
+    /// ```
+    ///
+    pub fn set_err(&self, err: NixError, msg: &str) {
+        let ptr = unsafe { self.as_ptr() };
+        assert!(!ptr.is_null(), "");
+
+        sys::nix_set_err_msg(ptr, err.into())
     }
 
     /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
