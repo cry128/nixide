@@ -5,6 +5,31 @@ use std::str::from_utf8;
 use crate::errors::new_nixide_error;
 use crate::NixideResult;
 
+pub trait AsCPtr<T> {
+    fn as_c_ptr(&self) -> NixideResult<*const T>;
+
+    fn into_c_ptr(self) -> NixideResult<*mut T>;
+}
+
+impl<T> AsCPtr<c_char> for T
+where
+    T: AsRef<str>,
+{
+    fn as_c_ptr(&self) -> NixideResult<*const c_char> {
+        match CStr::from_bytes_until_nul(self.as_ref().as_bytes()) {
+            Ok(s) => Ok(s.as_ptr()),
+            Err(_) => Err(new_nixide_error!(StringNulByte)),
+        }
+    }
+
+    fn into_c_ptr(self) -> NixideResult<*mut c_char> {
+        match CStr::from_bytes_until_nul(self.as_ref().as_bytes()) {
+            Ok(s) => Ok(s.as_ptr().cast_mut()),
+            Err(_) => Err(new_nixide_error!(StringNulByte)),
+        }
+    }
+}
+
 pub trait CCharPtrExt {
     fn to_utf8_string(self) -> NixideResult<String>;
 
