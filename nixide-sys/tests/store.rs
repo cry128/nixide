@@ -1,3 +1,4 @@
+#![cfg(feature = "nix-store-c")]
 #![cfg(test)]
 
 use std::{ffi::CString, ptr};

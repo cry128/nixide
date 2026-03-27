@@ -1,3 +1,4 @@
+#![cfg(feature = "nix-flake-c")]
 #![cfg(test)]
 
 use std::ptr;

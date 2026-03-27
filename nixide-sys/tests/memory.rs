@@ -1,3 +1,4 @@
+#![cfg(feature = "nix-expr-c")]
 #![cfg(test)]
 
 use std::ffi::CString;
