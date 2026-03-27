@@ -1,6 +1,9 @@
 # Nix
-result
-result-*
+/result
+/result-*
 
 # Rust
 /target
+
+# Helix
+/.helix
