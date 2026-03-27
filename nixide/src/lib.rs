@@ -11,14 +11,13 @@ mod version;
 
 #[cfg(feature = "expr")]
 mod expr;
+#[cfg(feature = "flake")]
+mod flake;
 #[cfg(feature = "store")]
 mod store;
 
-#[cfg(feature = "flake")]
-mod flake;
-
 pub use errors::{NixError, NixideError, NixideResult};
-pub use verbosity::NixVerbosity;
+pub use verbosity::{set_verbosity, NixVerbosity};
 pub use version::NixVersion;
 
 #[cfg(feature = "expr")]
