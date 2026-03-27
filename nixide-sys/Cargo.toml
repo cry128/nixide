@@ -19,14 +19,16 @@ targets = [ "x86_64-unknown-linux-gnu" ]
 [lib]
 path = "lib.rs"
 
+# NOTE: `[features]` have a 1-1 correspondence to the
+# NOTE: shared libraries produced by the Nix C API.
 [features]
-default = ["util"]
-expr = []
-fetchers = []
-flakes = []
-store = []
-util = []
-gc = []
+default = ["nix-util-c"]
+nix-util-c = []
+nix-store-c = []
+nix-expr-c = []
+nix-fetchers-c = []
+nix-flake-c = []
+nix-main-c = []
 
 [build-dependencies]
 bindgen              = { default-features = false, features = [ "logging", "runtime" ], version = "0.72.1" }

@@ -15,18 +15,16 @@ edition      = "2024"
 path = "src/lib.rs"
 
 [features]
-default = ["util"]
-expr = []
-fetchers = []
-flakes = []
-store = []
-util = []
-gc = []
+default = []
+store = ["nixide-sys/nix-store-c"]
+expr = ["store", "nixide-sys/nix-expr-c"]
+flake = ["store", "nixide-sys/nix-flake-c", "nixide-sys/nix-fetchers-c"]
 
 [dependencies]
 libc = "0.2.183"
 stdext = "0.3.3"
-nixide-sys = { path = "../nixide-sys", version = "0.1.0" }
+ctor = "0.6.3"
+nixide-sys = { path = "../nixide-sys", version = "0.1.0", features = ["nix-util-c", "nix-main-c"]}
 
 [dev-dependencies]
 serial_test = "3.4.0"

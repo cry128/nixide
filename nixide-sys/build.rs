@@ -20,17 +20,26 @@ impl ParseCallbacks for DoxygenCallbacks {
 
 fn main() {
     // Invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=include/wrapper.h");
+    println!("cargo:rerun-if-changed=include/nix-util.h");
+    println!("cargo:rerun-if-changed=include/nix-store.h");
+    println!("cargo:rerun-if-changed=include/nix-expr.h");
+    println!("cargo:rerun-if-changed=include/nix-fetchers.h");
+    println!("cargo:rerun-if-changed=include/nix-flake.h");
+    println!("cargo:rerun-if-changed=include/nix-main.h");
 
-    // Use pkg-config to find nix-store include and link paths
-    // This NEEDS to be included, or otherwise `nix_api_store.h` cannot
-    // be found.
     let libs = [
-        "nix-main-c",
-        "nix-expr-c",
-        "nix-store-c",
+        #[cfg(feature = "nix-util-c")]
         "nix-util-c",
+        #[cfg(feature = "nix-store-c")]
+        "nix-store-c",
+        #[cfg(feature = "nix-expr-c")]
+        "nix-expr-c",
+        #[cfg(feature = "nix-fetchers-c")]
+        "nix-fetchers-c",
+        #[cfg(feature = "nix-flake-c")]
         "nix-flake-c",
+        #[cfg(feature = "nix-main-c")]
+        "nix-main-c",
     ];
 
     let lib_args: Vec<String> = libs
@@ -50,17 +59,43 @@ fn main() {
         .flatten()
         .collect();
 
-    let bindings = bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         .clang_args(lib_args)
-        // The input header we would like to generate bindings for
-        .header("include/wrapper.h")
         // Invalidate the built crate when an included header file changes
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         // Add `doxygen_bindgen` callbacks
         .parse_callbacks(Box::new(DoxygenCallbacks))
         // Format generated bindings with rustfmt
         .formatter(bindgen::Formatter::Rustfmt)
-        .rustfmt_configuration_file(std::fs::canonicalize(".rustfmt.toml").ok())
+        .rustfmt_configuration_file(std::fs::canonicalize(".rustfmt.toml").ok());
+
+    // The input headers we would like to generate bindings for
+    #[cfg(feature = "nix-util-c")]
+    {
+        builder = builder.header("include/nix-util.h")
+    }
+    #[cfg(feature = "nix-store-c")]
+    {
+        builder = builder.header("include/nix-store.h")
+    }
+    #[cfg(feature = "nix-expr-c")]
+    {
+        builder = builder.header("include/nix-expr.h")
+    }
+    #[cfg(feature = "nix-fetchers-c")]
+    {
+        builder = builder.header("include/nix-fetchers.h")
+    }
+    #[cfg(feature = "nix-flake-c")]
+    {
+        builder = builder.header("include/nix-flake.h")
+    }
+    #[cfg(feature = "nix-main-c")]
+    {
+        builder = builder.header("include/nix-main.h")
+    }
+
+    let bindings = builder
         // Finish the builder and generate the bindings
         .generate()
         // Unwrap the Result and panic on failure
