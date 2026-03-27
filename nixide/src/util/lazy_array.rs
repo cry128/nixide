@@ -1,7 +1,7 @@
 use std::cell::{Ref, RefCell};
 
 #[derive(Debug)]
-pub struct LazyArray<T, F>
+pub struct LazyArray<T, F = fn(usize) -> T>
 where
     F: Fn(usize) -> T,
 {

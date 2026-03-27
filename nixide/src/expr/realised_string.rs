@@ -1,6 +1,6 @@
+use std::cell::RefCell;
 use std::ffi::c_char;
 use std::ptr::NonNull;
-use std::sync::Arc;
 
 use crate::errors::ErrorContext;
 use crate::expr::values::NixString;
@@ -11,31 +11,30 @@ use crate::util::LazyArray;
 use crate::util::{panic_issue_call_failed, wrap};
 use crate::{EvalState, NixideResult, StorePath};
 
-pub struct RealisedString {
-    inner: NonNull<sys::nix_realised_string>,
+pub struct RealisedString<'a> {
+    inner: RefCell<NonNull<sys::nix_realised_string>>,
     pub path: StorePath,
-    pub children:
-        LazyArray<StorePath, fn(&LazyArray<StorePath, fn(usize) -> StorePath>, usize) -> StorePath>,
+    pub children: LazyArray<StorePath, &'a dyn Fn(usize) -> StorePath>,
 }
 
-impl AsInnerPtr<sys::nix_realised_string> for RealisedString {
+impl<'a> AsInnerPtr<sys::nix_realised_string> for RealisedString<'a> {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::nix_realised_string {
-        self.inner.as_ptr()
+        self.inner.borrow().as_ptr()
     }
 
     #[inline]
     unsafe fn as_ref(&self) -> &sys::nix_realised_string {
-        unsafe { self.inner.as_ref() }
+        unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
     unsafe fn as_mut(&mut self) -> &mut sys::nix_realised_string {
-        unsafe { self.inner.as_mut() }
+        unsafe { self.inner.borrow_mut().as_mut() }
     }
 }
 
-impl Drop for RealisedString {
+impl<'a> Drop for RealisedString<'a> {
     fn drop(&mut self) {
         unsafe {
             sys::nix_realised_string_free(self.as_ptr());
@@ -43,7 +42,7 @@ impl Drop for RealisedString {
     }
 }
 
-impl RealisedString {
+impl<'a> RealisedString<'a> {
     /// Realise a string context.
     ///
     /// This will
@@ -64,7 +63,7 @@ impl RealisedString {
     /// # Returns
     ///
     /// NULL if failed, or a new nix_realised_string, which must be freed with nix_realised_string_free
-    pub fn new(value: &NixString, state: &Arc<EvalState>) -> NixideResult<Self> {
+    pub fn new(value: &NixString, state: &'a EvalState) -> NixideResult<RealisedString<'a>> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_string_realise(
                 ctx.as_ptr(),
@@ -73,32 +72,20 @@ impl RealisedString {
                 false, // don't copy more
             )
         })?;
-
-        fn delegate(
-            inner: &LazyArray<StorePath, Box<dyn Fn(usize) -> StorePath>>,
-            index: usize,
-        ) -> StorePath {
-            // XXX: TODO
-            // inner[index]
-            StorePath::fake_path(unsafe { state.store_ref() }).unwrap()
-        }
+        let cell = RefCell::new(inner);
 
         let size = unsafe { sys::nix_realised_string_get_store_path_count(inner.as_ptr()) };
 
+        let delegate = &|_| StorePath::fake_path(unsafe { state.store_ref() }).unwrap();
+
         Ok(Self {
-            inner,
+            inner: cell,
             path: Self::parse_path(inner.as_ptr(), state),
-            children: LazyArray::<StorePath, Box<dyn Fn(usize) -> StorePath>>::new(
-                size,
-                Box::new(delegate),
-            ),
+            children: LazyArray::new(size, &delegate),
         })
     }
 
-    fn parse_path(
-        realised_string: *mut sys::nix_realised_string,
-        state: &Arc<EvalState>,
-    ) -> StorePath {
+    fn parse_path(realised_string: *mut sys::nix_realised_string, state: &EvalState) -> StorePath {
         let buffer_ptr = unsafe { sys::nix_realised_string_get_buffer_start(realised_string) };
         let buffer_size = unsafe { sys::nix_realised_string_get_buffer_size(realised_string) };
 
