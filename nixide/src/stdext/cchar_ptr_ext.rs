@@ -6,8 +6,10 @@ use crate::errors::new_nixide_error;
 use crate::NixideResult;
 
 pub trait AsCPtr<T> {
+    #[allow(unused)]
     fn as_c_ptr(&self) -> NixideResult<*const T>;
 
+    #[allow(unused)]
     fn into_c_ptr(self) -> NixideResult<*mut T>;
 }
 
@@ -31,8 +33,10 @@ where
 }
 
 pub trait CCharPtrExt {
+    #[allow(unused)]
     fn to_utf8_string(self) -> NixideResult<String>;
 
+    #[allow(unused)]
     fn to_utf8_string_n(self, n: usize) -> NixideResult<String>;
 }
 

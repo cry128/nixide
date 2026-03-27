@@ -6,6 +6,7 @@ pub trait AsInnerPtr<T> {
     /// Although this function isn't inherently `unsafe`, it is
     /// marked as such intentionally to force calls to be wrapped
     /// in `unsafe` blocks for clarity.
+    #[allow(unused)]
     unsafe fn as_ptr(&self) -> *mut T;
 
     /// Returns a shared reference to the inner `libnix` C struct.
@@ -17,6 +18,7 @@ pub trait AsInnerPtr<T> {
     /// Although this function isn't inherently `unsafe`, it is
     /// marked as such intentionally to force calls to be wrapped
     /// in `unsafe` blocks for clarity.
+    #[allow(unused)]
     unsafe fn as_ref(&self) -> &T;
 
     /// Returns a unique reference to the inner `libnix` C struct.
@@ -28,5 +30,6 @@ pub trait AsInnerPtr<T> {
     /// Although this function isn't inherently `unsafe`, it is
     /// marked as such intentionally to force calls to be wrapped
     /// in `unsafe` blocks for clarity.
+    #[allow(unused)]
     unsafe fn as_mut(&mut self) -> &mut T;
 }
