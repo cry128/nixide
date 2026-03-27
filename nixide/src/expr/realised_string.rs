@@ -13,9 +13,9 @@ use crate::{EvalState, NixideResult, StorePath};
 
 pub struct RealisedString {
     inner: NonNull<sys::nix_realised_string>,
-    // pub path: LazyCell<StorePath, Box<fn() -> StorePath>>,
     pub path: StorePath,
-    pub children: LazyArray<StorePath, fn(&LazyArray<StorePath, fn(usize) -> StorePath>, usize) -> StorePath>>,
+    pub children:
+        LazyArray<StorePath, fn(&LazyArray<StorePath, fn(usize) -> StorePath>, usize) -> StorePath>,
 }
 
 impl AsInnerPtr<sys::nix_realised_string> for RealisedString {
@@ -88,7 +88,6 @@ impl RealisedString {
         Ok(Self {
             inner,
             path: Self::parse_path(inner.as_ptr(), state),
-            // children: LazyArray::new(size, delegate as fn(usize) -> StorePath),
             children: LazyArray::<StorePath, Box<dyn Fn(usize) -> StorePath>>::new(
                 size,
                 Box::new(delegate),

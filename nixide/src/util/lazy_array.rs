@@ -1,12 +1,11 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{Ref, RefCell};
 
 #[derive(Debug)]
 pub struct LazyArray<T, F>
 where
     F: Fn(usize) -> T,
 {
-    inner: Rc<RefCell<Vec<Option<T>>>>,
+    inner: RefCell<Vec<Option<T>>>,
     size: usize,
     delegate: F,
 }
@@ -22,58 +21,25 @@ where
         }
 
         LazyArray {
-            inner: Rc::new(RefCell::new(vec)),
+            inner: RefCell::new(vec),
             size,
             delegate,
         }
     }
 
-    /// Returns `None` if `index < self.size` otherwise always succeeds
+    /// Returns `None` if `index >= self.size` otherwise always succeeds
     /// (unless of course the callback you supply panics).
     ///
-    // pub fn get(&mut self, index: usize) -> Option<&T> {
-    //     // let x = self.inner.get(index).copied().and_then(|value| match value {
-    //     //     Some(value) => Some(value),
-    //     //     None => {
-    //     //         // store the value first
-    //     //         let value = (self.delegate)(index);
-    //     //         self.inner[index] = Some(value);
+    pub fn get<'a>(&'a mut self, index: usize) -> Option<Ref<'a, Option<T>>> {
+        let borrowed = self.inner.borrow();
 
-    //     //         // now get a reference to it
-    //     //         if let Some(v) = &self.inner[index] {
-    //     //             return Some(v);
-    //     //         }
-    //     //         None
-    //     //     }
-    //     // })
-    //     match self.inner.clone().borrow().get(index) {
-    //         Some(Some(value)) => Some(value),
-    //         Some(None) => {
-    //             let mut inner = self.inner.clone().borrow_mut();
-    //             // store the value first
-    //             inner[index] = Some((self.delegate)(index));
-
-    //             // now get a reference to it
-    //             inner[index].as_ref()
-    //         }
-    //         None => None,
-    //     }
-    // }
-    pub fn get(&mut self, index: usize) -> Option<Rc<T>> {
         if index >= self.size {
             return None;
+        } else if borrowed[index].is_none() {
+            let value = (self.delegate)(index);
+            self.inner.borrow_mut()[index] = Some(value);
         }
 
-        // let inner = self.inner.borrow();
-        if let Some(value) = self.inner.borrow()[index].as_ref() {
-            return Some(Rc::new(value));
-        }
-
-        // drop(inner); // explicitly drop the borrow
-
-        let value = (self.delegate)(index);
-        self.inner.borrow_mut()[index] = Some(value);
-
-        Some(Rc::new(self.inner.borrow()[index].unwrap()))
+        Some(Ref::map(borrowed, |v| &v[index]))
     }
 }
