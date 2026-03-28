@@ -14,7 +14,7 @@ use crate::{EvalState, NixideResult, StorePath};
 pub struct RealisedString<'a> {
     inner: RefCell<NonNull<sys::nix_realised_string>>,
     pub path: StorePath,
-    pub children: LazyArray<StorePath, &'a dyn Fn(usize) -> StorePath>,
+    pub children: LazyArray<StorePath, Box<dyn Fn(usize) -> StorePath + 'a>>,
 }
 
 impl<'a> AsInnerPtr<sys::nix_realised_string> for RealisedString<'a> {
@@ -76,12 +76,13 @@ impl<'a> RealisedString<'a> {
 
         let size = unsafe { sys::nix_realised_string_get_store_path_count(inner.as_ptr()) };
 
-        let delegate = &|_| StorePath::fake_path(unsafe { state.store_ref() }).unwrap();
-
         Ok(Self {
             inner: cell,
             path: Self::parse_path(inner.as_ptr(), state),
-            children: LazyArray::new(size, &delegate),
+            children: LazyArray::new(
+                size,
+                Box::new(|_| StorePath::fake_path(unsafe { state.store_ref() }).unwrap()),
+            ),
         })
     }
 

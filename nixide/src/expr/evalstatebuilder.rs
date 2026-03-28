@@ -50,7 +50,7 @@ impl EvalStateBuilder {
             sys::nix_eval_state_builder_new(ctx.as_ptr(), store.as_ptr())
         })?;
 
-        sys::nix_eval_state_builder_load(context, builder);
+        // sys::nix_eval_state_builder_load(context, builder);
         // sys::nix_flake_settings_add_to_eval_state_builder(context, settings, builder);
 
         Ok(EvalStateBuilder {

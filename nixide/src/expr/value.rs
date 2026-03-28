@@ -7,30 +7,38 @@ use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
 
+pub use crate::expr::values::{NixBool, NixFloat, NixInt, NixString, NixValue};
+
 /// A Nix value
 ///
 /// This represents any value in the Nix language, including primitives,
 /// collections, and functions.
-pub struct Value<'a> {
-    pub(crate) inner: NonNull<sys::nix_value>,
-    state: &'a EvalState,
-}
-
-impl<'a> AsInnerPtr<sys::nix_value> for Value<'a> {
-    #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_value {
-        self.inner.as_ptr()
-    }
-
-    #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_value {
-        unsafe { self.inner.as_ref() }
-    }
-
-    #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_value {
-        unsafe { self.inner.as_mut() }
-    }
+///
+/// ```cpp
+/// pub const ValueType_NIX_TYPE_THUNK: ValueType = 0;
+/// pub const ValueType_NIX_TYPE_INT: ValueType = 1;
+/// pub const ValueType_NIX_TYPE_FLOAT: ValueType = 2;
+/// pub const ValueType_NIX_TYPE_BOOL: ValueType = 3;
+/// pub const ValueType_NIX_TYPE_STRING: ValueType = 4;
+/// pub const ValueType_NIX_TYPE_PATH: ValueType = 5;
+/// pub const ValueType_NIX_TYPE_NULL: ValueType = 6;
+/// pub const ValueType_NIX_TYPE_ATTRS: ValueType = 7;
+/// pub const ValueType_NIX_TYPE_LIST: ValueType = 8;
+/// pub const ValueType_NIX_TYPE_FUNCTION: ValueType = 9;
+/// pub const ValueType_NIX_TYPE_EXTERNAL: ValueType = 10;
+/// ```
+pub enum Value {
+    // Thunk(NixThunk),
+    Int(NixInt),
+    Float(NixFloat),
+    Bool(NixBool),
+    String(NixString),
+    // Path(NixPath),
+    // Null(NixNull),
+    // Attrs(NixAttrs),
+    // List(NixList),
+    // Function(NixFunction),
+    // External(NixExternal),
 }
 
 impl<'a> Value<'a> {

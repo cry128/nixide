@@ -13,6 +13,15 @@ pub struct NixBool {
     value: bool,
 }
 
+impl Drop for NixBool {
+    fn drop(&mut self) {
+        let ctx = ErrorContext::new();
+        unsafe {
+            sys::nix_value_decref(ctx.as_ptr(), self.as_ptr());
+        }
+    }
+}
+
 impl Display for NixBool {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "<bool>")
@@ -44,7 +53,7 @@ impl AsInnerPtr<sys::nix_value> for NixBool {
 
 impl NixValue for NixBool {
     #[inline]
-    fn get_enum_id(&self) -> sys::ValueType {
+    fn id(&self) -> sys::ValueType {
         sys::ValueType_NIX_TYPE_BOOL
     }
 

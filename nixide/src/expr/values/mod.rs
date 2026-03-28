@@ -21,9 +21,10 @@ use std::ptr::NonNull;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 
-pub trait NixValue: Display + Debug + AsInnerPtr<sys::nix_value> {
+pub trait NixValue: Drop + Display + Debug + AsInnerPtr<sys::nix_value> {
     /// TODO
-    fn get_enum_id(&self) -> sys::ValueType;
+    fn id(&self) -> sys::ValueType;
 
+    /// TODO
     fn new(inner: NonNull<sys::nix_value>) -> Self;
 }

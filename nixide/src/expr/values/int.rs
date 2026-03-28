@@ -12,6 +12,15 @@ pub struct NixInt {
     value: i64,
 }
 
+impl Drop for NixInt {
+    fn drop(&mut self) {
+        let ctx = ErrorContext::new();
+        unsafe {
+            sys::nix_value_decref(ctx.as_ptr(), self.as_ptr());
+        }
+    }
+}
+
 impl Display for NixInt {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "<int>")
@@ -43,7 +52,7 @@ impl AsInnerPtr<sys::nix_value> for NixInt {
 
 impl NixValue for NixInt {
     #[inline]
-    fn get_enum_id(&self) -> sys::ValueType {
+    fn id(&self) -> sys::ValueType {
         sys::ValueType_NIX_TYPE_INT
     }
 

@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
 
 use super::NixValue;
+use crate::errors::ErrorContext;
 use crate::expr::RealisedString;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
@@ -12,6 +13,15 @@ use crate::{sys, NixideResult};
 pub struct NixString {
     inner: NonNull<sys::nix_value>,
     value: String,
+}
+
+impl Drop for NixString {
+    fn drop(&mut self) {
+        let ctx = ErrorContext::new();
+        unsafe {
+            sys::nix_value_decref(ctx.as_ptr(), self.as_ptr());
+        }
+    }
 }
 
 impl Display for NixString {
@@ -45,7 +55,7 @@ impl AsInnerPtr<sys::nix_value> for NixString {
 
 impl NixValue for NixString {
     #[inline]
-    fn get_enum_id(&self) -> sys::ValueType {
+    fn id(&self) -> sys::ValueType {
         sys::ValueType_NIX_TYPE_STRING
     }
 
