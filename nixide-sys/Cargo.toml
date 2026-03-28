@@ -5,10 +5,7 @@ version      = "0.1.0"
 readme       = "../README.md"
 license      = "GPL-3.0"
 repository   = "https://codeberg.org/luminary/nixide"
-authors      = [
-    "_cry64 <them@dobutterfliescry.net>",
-    "foxxyora <foxxyora@noreply.codeberg.org>"
-]
+authors      = [ "_cry64 <them@dobutterfliescry.net>" ]
 
 edition      = "2024"
 build        = "build.rs"
