@@ -1,17 +1,19 @@
-use std::cell::LazyCell;
+use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
-use crate::expr::RealisedString;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{sys, NixideResult};
+use crate::{EvalState, sys};
 
 pub struct NixString {
     inner: NonNull<sys::nix_value>,
+    state: Rc<RefCell<EvalState>>,
     value: String,
 }
 
@@ -55,23 +57,28 @@ impl AsInnerPtr<sys::nix_value> for NixString {
 
 impl NixValue for NixString {
     #[inline]
-    fn id(&self) -> sys::ValueType {
+    fn type_id(&self) -> sys::ValueType {
         sys::ValueType_NIX_TYPE_STRING
     }
 
-    fn new(inner: NonNull<sys::nix_value>) -> Self {
-        //     wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-        //         sys::nix_get_int(ctx.as_ptr(), inner.as_ptr())
-        //     })
-        //     .unwrap_or_else(|err| {
-        //         panic_issue_call_failed!(
-        //             "`sys::nix_get_int` failed for valid `NixString` ({})",
-        //             err
-        //         )
-        //     })
-        // };
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+        let value = wrap::nix_string_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
+                sys::nix_get_string(
+                    ctx.as_ptr(),
+                    inner.as_ptr(),
+                    Some(callback),
+                    userdata as *mut c_void,
+                );
+            }
+        )
+        .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Self { inner, value }
+        Self {
+            inner,
+            state,
+            value,
+        }
     }
 }
 

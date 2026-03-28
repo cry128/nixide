@@ -137,7 +137,9 @@ impl ErrorContext {
     pub fn new() -> Self {
         match NonNull::new(unsafe { sys::nix_c_context_create() }) {
             Some(inner) => ErrorContext { inner },
-            None => panic!("[nixide] CRITICAL FAILURE: Out-Of-Memory condition reached - `sys::nix_c_context_create` allocation failed!"),
+            None => panic!(
+                "[nixide] CRITICAL FAILURE: Out-Of-Memory condition reached - `sys::nix_c_context_create` allocation failed!"
+            ),
         }
     }
 

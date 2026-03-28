@@ -1,13 +1,13 @@
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CString, c_char};
 use std::ptr::{self, NonNull};
 use std::sync::Arc;
 
 use super::EvalState;
+use crate::Store;
 use crate::errors::{ErrorContext, NixideResult};
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::Store;
 
 /// Builder for Nix evaluation state.
 ///

@@ -1,5 +1,7 @@
 // #![warn(missing_docs)]
 
+#![cfg_attr(nightly, feature(fn_traits))]
+
 pub extern crate libc;
 pub extern crate nixide_sys as sys;
 
@@ -17,11 +19,11 @@ mod flake;
 mod store;
 
 pub use errors::{NixError, NixideError, NixideResult};
-pub use verbosity::{set_verbosity, NixVerbosity};
+pub use verbosity::{NixVerbosity, set_verbosity};
 pub use version::NixVersion;
 
 #[cfg(feature = "expr")]
-pub use expr::{EvalState, EvalStateBuilder, Value, ValueType};
+pub use expr::{EvalState, EvalStateBuilder, Value};
 #[cfg(feature = "store")]
 pub use store::{Store, StorePath};
 

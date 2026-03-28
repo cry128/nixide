@@ -7,7 +7,10 @@ use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
 
-pub use crate::expr::values::{NixBool, NixFloat, NixInt, NixString, NixValue};
+pub use crate::expr::values::{
+    NixAttrs, NixBool, NixExternal, NixFloat, NixFunction, NixInt, NixList, NixNull, NixPath,
+    NixString, NixThunk, NixValue,
+};
 
 /// A Nix value
 ///
@@ -28,31 +31,39 @@ pub use crate::expr::values::{NixBool, NixFloat, NixInt, NixString, NixValue};
 /// pub const ValueType_NIX_TYPE_EXTERNAL: ValueType = 10;
 /// ```
 pub enum Value {
-    // Thunk(NixThunk),
+    /// Unevaluated expression
+    ///
+    /// Thunks often contain an expression and closure, but may contain other
+    /// representations too.
+    ///
+    /// Their state is mutable, unlike that of the other types.
+    Thunk(NixThunk),
     Int(NixInt),
     Float(NixFloat),
     Bool(NixBool),
     String(NixString),
-    // Path(NixPath),
-    // Null(NixNull),
-    // Attrs(NixAttrs),
-    // List(NixList),
-    // Function(NixFunction),
-    // External(NixExternal),
+    Path(NixPath),
+    Null(NixNull),
+    Attrs(NixAttrs),
+    List(NixList),
+    Function(NixFunction),
+    External(NixExternal),
 }
 
-impl<'a> Value<'a> {
-    pub(crate) fn new(inner: NonNull<sys::nix_value>, state: &'a EvalState) -> Self {
-        Value { inner, state }
-    }
-
-    /// Force evaluation of this value.
+impl Value {
+    /// Forces the evaluation of a Nix value.
     ///
-    /// If the value is a thunk, this will evaluate it to its final form.
+    /// The Nix interpreter is lazy, and not-yet-evaluated values can be
+    /// of type NIX_TYPE_THUNK instead of their actual value.
     ///
-    /// # Errors
+    /// This function mutates such a `nix_value`, so that, if successful, it has its final type.
     ///
-    /// Returns an error if evaluation fails.
+    /// @param[out] context Optional, stores error information
+    /// @param[in] state The state of the evaluation.
+    /// @param[in,out] value The Nix value to force.
+    /// @post value is not of type NIX_TYPE_THUNK
+    /// @return NIX_OK if the force operation was successful, an error code
+    /// otherwise.
     pub fn force(&mut self) -> NixideResult<()> {
         // XXX: TODO: move force and force_deep to the EvalState
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -112,21 +123,21 @@ impl<'a> Value<'a> {
     /// representation.
     pub fn to_nix_string(&self) -> NixideResult<String> {
         match self.value_type() {
-            ValueType::Int => Ok(self.as_int()?.to_string()),
-            ValueType::Float => Ok(self.as_float()?.to_string()),
-            ValueType::Bool => Ok(if self.as_bool()? {
+            | ValueType::Int => Ok(self.as_int()?.to_string()),
+            | ValueType::Float => Ok(self.as_float()?.to_string()),
+            | ValueType::Bool => Ok(if self.as_bool()? {
                 "true".to_string()
             } else {
                 "false".to_string()
             }),
-            ValueType::String => Ok(format!("\"{}\"", self.as_string()?.replace('"', "\\\""))),
-            ValueType::Null => Ok("null".to_string()),
-            ValueType::Attrs => Ok("{ <attrs> }".to_string()),
-            ValueType::List => Ok("[ <list> ]".to_string()),
-            ValueType::Function => Ok("<function>".to_string()),
-            ValueType::Path => Ok("<path>".to_string()),
-            ValueType::Thunk => Ok("<thunk>".to_string()),
-            ValueType::External => Ok("<external>".to_string()),
+            | ValueType::String => Ok(format!("\"{}\"", self.as_string()?.replace('"', "\\\""))),
+            | ValueType::Null => Ok("null".to_string()),
+            | ValueType::Attrs => Ok("{ <attrs> }".to_string()),
+            | ValueType::List => Ok("[ <list> ]".to_string()),
+            | ValueType::Function => Ok("<function>".to_string()),
+            | ValueType::Path => Ok("<path>".to_string()),
+            | ValueType::Thunk => Ok("<thunk>".to_string()),
+            | ValueType::External => Ok("<external>".to_string()),
         }
     }
 }
@@ -143,41 +154,41 @@ impl Drop for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self.value_type() {
-            ValueType::Int => {
+            | ValueType::Int => {
                 if let Ok(val) = self.as_int() {
                     write!(f, "{val}")
                 } else {
                     write!(f, "<int error>")
                 }
-            }
-            ValueType::Float => {
+            },
+            | ValueType::Float => {
                 if let Ok(val) = self.as_float() {
                     write!(f, "{val}")
                 } else {
                     write!(f, "<float error>")
                 }
-            }
-            ValueType::Bool => {
+            },
+            | ValueType::Bool => {
                 if let Ok(val) = self.as_bool() {
                     write!(f, "{val}")
                 } else {
                     write!(f, "<bool error>")
                 }
-            }
-            ValueType::String => {
+            },
+            | ValueType::String => {
                 if let Ok(val) = self.as_string() {
                     write!(f, "{val}")
                 } else {
                     write!(f, "<string error>")
                 }
-            }
-            ValueType::Null => write!(f, "null"),
-            ValueType::Attrs => write!(f, "{{ <attrs> }}"),
-            ValueType::List => write!(f, "[ <list> ]"),
-            ValueType::Function => write!(f, "<function>"),
-            ValueType::Path => write!(f, "<path>"),
-            ValueType::Thunk => write!(f, "<thunk>"),
-            ValueType::External => write!(f, "<external>"),
+            },
+            | ValueType::Null => write!(f, "null"),
+            | ValueType::Attrs => write!(f, "{{ <attrs> }}"),
+            | ValueType::List => write!(f, "[ <list> ]"),
+            | ValueType::Function => write!(f, "<function>"),
+            | ValueType::Path => write!(f, "<path>"),
+            | ValueType::Thunk => write!(f, "<thunk>"),
+            | ValueType::External => write!(f, "<external>"),
         }
     }
 }
@@ -186,41 +197,41 @@ impl Debug for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let value_type = self.value_type();
         match value_type {
-            ValueType::Int => {
+            | ValueType::Int => {
                 if let Ok(val) = self.as_int() {
                     write!(f, "Value::Int({val})")
                 } else {
                     write!(f, "Value::Int(<error>)")
                 }
-            }
-            ValueType::Float => {
+            },
+            | ValueType::Float => {
                 if let Ok(val) = self.as_float() {
                     write!(f, "Value::Float({val})")
                 } else {
                     write!(f, "Value::Float(<error>)")
                 }
-            }
-            ValueType::Bool => {
+            },
+            | ValueType::Bool => {
                 if let Ok(val) = self.as_bool() {
                     write!(f, "Value::Bool({val})")
                 } else {
                     write!(f, "Value::Bool(<error>)")
                 }
-            }
-            ValueType::String => {
+            },
+            | ValueType::String => {
                 if let Ok(val) = self.as_string() {
                     write!(f, "Value::String({val:?})")
                 } else {
                     write!(f, "Value::String(<error>)")
                 }
-            }
-            ValueType::Null => write!(f, "Value::Null"),
-            ValueType::Attrs => write!(f, "Value::Attrs({{ <attrs> }})"),
-            ValueType::List => write!(f, "Value::List([ <list> ])"),
-            ValueType::Function => write!(f, "Value::Function(<function>)"),
-            ValueType::Path => write!(f, "Value::Path(<path>)"),
-            ValueType::Thunk => write!(f, "Value::Thunk(<thunk>)"),
-            ValueType::External => write!(f, "Value::External(<external>)"),
+            },
+            | ValueType::Null => write!(f, "Value::Null"),
+            | ValueType::Attrs => write!(f, "Value::Attrs({{ <attrs> }})"),
+            | ValueType::List => write!(f, "Value::List([ <list> ])"),
+            | ValueType::Function => write!(f, "Value::Function(<function>)"),
+            | ValueType::Path => write!(f, "Value::Path(<path>)"),
+            | ValueType::Thunk => write!(f, "Value::Thunk(<thunk>)"),
+            | ValueType::External => write!(f, "Value::External(<external>)"),
         }
     }
 }

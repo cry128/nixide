@@ -1,15 +1,18 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
-use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::{EvalState, sys};
 
 pub struct NixBool {
     inner: NonNull<sys::nix_value>,
+    state: Rc<RefCell<EvalState>>,
     value: bool,
 }
 
@@ -53,11 +56,11 @@ impl AsInnerPtr<sys::nix_value> for NixBool {
 
 impl NixValue for NixBool {
     #[inline]
-    fn id(&self) -> sys::ValueType {
+    fn type_id(&self) -> sys::ValueType {
         sys::ValueType_NIX_TYPE_BOOL
     }
 
-    fn new(inner: NonNull<sys::nix_value>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_bool(ctx.as_ptr(), inner.as_ptr())
         })
@@ -65,7 +68,11 @@ impl NixValue for NixBool {
             panic_issue_call_failed!("`sys::nix_get_bool` failed for valid `NixBool` ({})", err)
         });
 
-        Self { inner, value }
+        Self {
+            inner,
+            state,
+            value,
+        }
     }
 }
 

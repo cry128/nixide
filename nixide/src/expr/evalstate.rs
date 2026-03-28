@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use crate::errors::new_nixide_error;
 
-use super::Value;
+use super::{NixValue, Value};
 use crate::errors::ErrorContext;
 use crate::sys;
-use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::util::{panic_issue_call_failed, wrap};
 use crate::{NixideResult, Store};
 
 /// Nix evaluation state for evaluating expressions.
@@ -65,7 +65,11 @@ impl EvalState {
         let path_c = CString::new(path).or(Err(new_nixide_error!(StringNulByte)))?;
 
         // Allocate value for result
-        let value = self.new_value()?;
+        // XXX: TODO: create a method for this (``)
+        let value = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr())
+        })
+        .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
         // Evaluate expression
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -78,6 +82,7 @@ impl EvalState {
             );
             value
         })
+        .map(|ptr| Value::from((ptr, self)))
     }
 
     /// Allocate a new value.
@@ -91,7 +96,7 @@ impl EvalState {
             sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr())
         })?;
 
-        Ok(Value::new(inner, self))
+        Ok(Value::from((inner, self)))
     }
 }
 
