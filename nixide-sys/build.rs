@@ -11,21 +11,21 @@ impl ParseCallbacks for DoxygenCallbacks {
         match doxygen_bindgen::transform(comment) {
             Ok(res) => Some(res),
             Err(err) => {
-                println!("cargo:warning=Problem processing doxygen comment: {comment}\n{err}");
+                println!("cargo::warning=Problem processing doxygen comment: {comment}\n{err}");
                 None
-            }
+            },
         }
     }
 }
 
 fn main() {
     // Invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=include/nix-util.h");
-    println!("cargo:rerun-if-changed=include/nix-store.h");
-    println!("cargo:rerun-if-changed=include/nix-expr.h");
-    println!("cargo:rerun-if-changed=include/nix-fetchers.h");
-    println!("cargo:rerun-if-changed=include/nix-flake.h");
-    println!("cargo:rerun-if-changed=include/nix-main.h");
+    println!("cargo::rerun-if-changed=include/nix-util.h");
+    println!("cargo::rerun-if-changed=include/nix-store.h");
+    println!("cargo::rerun-if-changed=include/nix-expr.h");
+    println!("cargo::rerun-if-changed=include/nix-fetchers.h");
+    println!("cargo::rerun-if-changed=include/nix-flake.h");
+    println!("cargo::rerun-if-changed=include/nix-main.h");
 
     let libs = [
         #[cfg(feature = "nix-util-c")]
@@ -49,7 +49,7 @@ fn main() {
                 .expect(&format!("Unable to find .pc file for {}", name));
 
             for p in lib.link_files {
-                println!("cargo:rustc-link-lib={}", p.display());
+                println!("cargo::rustc-link-lib={}", p.display());
             }
 
             lib.include_paths
