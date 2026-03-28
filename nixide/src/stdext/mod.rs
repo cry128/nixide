@@ -1,4 +1,3 @@
-mod cchar_ptr_ext;
+mod cchar_ptr;
 
-pub(crate) use cchar_ptr_ext::{AsCPtr, CCharPtrExt};
-pub(crate) use stdext::*;
+pub(crate) use cchar_ptr::{AsCPtr, CCharPtrExt};
