@@ -1,3 +1,6 @@
+#ifndef NIXIDE_UTIL
+#define NIXIDE_UTIL
+
 // Nix C API for utilities.
 //
 // Most notably containing functions for handling
@@ -5,3 +8,5 @@
 // the Nix C APIs for error handling.
 //
 #include <nix_api_util.h>
+
+#endif

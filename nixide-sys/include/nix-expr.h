@@ -1,3 +1,6 @@
+#ifndef NIXIDE_EXPR
+#define NIXIDE_EXPR
+
 // Nix C API for the Nix expressions evaluator.
 #include <nix_api_expr.h>
 
@@ -8,3 +11,5 @@
 // Nix C API for external values.
 //
 #include <nix_api_external.h>
+
+#endif
