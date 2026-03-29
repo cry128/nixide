@@ -1,10 +1,12 @@
+use std::cell::RefCell;
 use std::ffi::CString;
 use std::ptr::NonNull;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::errors::new_nixide_error;
 
-use super::{NixValue, Value};
+use super::Value;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -16,7 +18,7 @@ use crate::{NixideResult, Store};
 /// This provides the main interface for evaluating Nix expressions
 /// and creating values.
 pub struct EvalState {
-    inner: NonNull<sys::EvalState>,
+    inner: Rc<RefCell<NonNull<sys::EvalState>>>,
 
     // XXX: TODO: is an `Arc<Store>` necessary or just a `Store`
     store: Arc<Store>,
@@ -25,24 +27,32 @@ pub struct EvalState {
 impl AsInnerPtr<sys::EvalState> for EvalState {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::EvalState {
-        self.inner.as_ptr()
+        self.inner.borrow().as_ptr()
     }
 
     #[inline]
     unsafe fn as_ref(&self) -> &sys::EvalState {
-        unsafe { self.inner.as_ref() }
+        unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
     unsafe fn as_mut(&mut self) -> &mut sys::EvalState {
-        unsafe { self.inner.as_mut() }
+        unsafe { self.inner.borrow_mut().as_mut() }
     }
 }
 
 impl EvalState {
     /// Construct a new EvalState directly from its attributes
     pub(super) fn new(inner: NonNull<sys::EvalState>, store: Arc<Store>) -> Self {
-        Self { inner, store }
+        Self {
+            inner: Rc::new(RefCell::new(inner)),
+            store,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn inner_ref(&self) -> Rc<RefCell<NonNull<sys::EvalState>>> {
+        self.inner.clone()
     }
 
     #[inline]
@@ -82,22 +92,7 @@ impl EvalState {
             );
             value
         })
-        .map(|ptr| Value::from((ptr, std::rc::Rc::new(std::cell::RefCell::new(self)))))
-    }
-
-    /// Allocate a new value.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if value allocation fails.
-    pub(self) fn new_value(&self) -> NixideResult<Value> {
-        // XXX: TODO: should this function be `Value::new` instead?
-        let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr())
-        })?;
-
-        // Ok(Value::from((inner, self)))
-        todo!()
+        .map(|ptr| Value::from((ptr, self.inner_ref())))
     }
 }
 

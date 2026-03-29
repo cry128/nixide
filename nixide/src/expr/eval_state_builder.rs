@@ -129,13 +129,14 @@ impl EvalStateBuilder {
         .map(|()| self);
 
         // ensure all allocated memory is dropped
-        unsafe {
-            Vec::from_raw_parts(ptr, paths_len, paths_capacity)
-                .into_iter()
-                .map(|p| {
-                    _ = CString::from_raw(p as *mut c_char);
-                })
-        };
+        // XXX: TODO!!
+        // unsafe {
+        //     Vec::from_raw_parts(ptr, paths_len, paths_capacity)
+        //         .into_iter()
+        //         .map(|p| {
+        //             _ = CString::from_raw(p as *mut c_char);
+        //         })
+        // };
 
         result
     }
