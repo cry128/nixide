@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use crate::errors::{new_nixide_error, ErrorContext};
+use crate::errors::{ErrorContext, new_nixide_error};
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::{EvalStateBuilder, NixideError};
