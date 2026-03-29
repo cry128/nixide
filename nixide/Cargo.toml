@@ -15,8 +15,8 @@ path = "src/lib.rs"
 [features]
 default = []
 store = ["nixide-sys/nix-store-c"]
-expr = ["store", "nixide-sys/nix-expr-c"]
-flake = ["store", "nixide-sys/nix-flake-c", "nixide-sys/nix-fetchers-c"]
+exprs = ["store", "nixide-sys/nix-expr-c"]
+flakes = ["store", "nixide-sys/nix-flake-c", "nixide-sys/nix-fetchers-c"]
 
 [dependencies]
 libc = "0.2.183"

@@ -12,9 +12,9 @@ pub(crate) mod util;
 mod verbosity;
 mod version;
 
-#[cfg(feature = "expr")]
+#[cfg(feature = "exprs")]
 mod expr;
-#[cfg(feature = "flake")]
+#[cfg(feature = "flakes")]
 mod flake;
 #[cfg(feature = "store")]
 mod store;
@@ -23,8 +23,10 @@ pub use errors::{NixError, NixideError, NixideResult};
 pub use verbosity::{NixVerbosity, set_verbosity};
 pub use version::NixVersion;
 
-#[cfg(feature = "expr")]
+#[cfg(feature = "exprs")]
 pub use expr::{EvalState, EvalStateBuilder, Value};
+#[cfg(feature = "flakes")]
+pub use flake::{FlakeSettings, LockedFlake};
 #[cfg(feature = "store")]
 pub use store::{Store, StorePath};
 
@@ -34,7 +36,7 @@ use util::wrappers::AsInnerPtr as _;
 pub(crate) static mut INIT_LIBUTIL_STATUS: Option<NixideResult<()>> = None;
 #[cfg(feature = "store")]
 pub(crate) static mut INIT_LIBSTORE_STATUS: Option<NixideResult<()>> = None;
-#[cfg(feature = "expr")]
+#[cfg(feature = "exprs")]
 pub(crate) static mut INIT_LIBEXPR_STATUS: Option<NixideResult<()>> = None;
 
 /// # Warning
@@ -53,9 +55,6 @@ fn init_libutil() {
     }
 }
 
-/// # TODO
-/// **Only run this if the "store" feature flag was enabled**
-///
 /// # Warning
 ///
 /// > Rust's philosophy is that nothing happens before or after main and [ctor](https://github.com/mmastrac/rust-ctor)
@@ -74,9 +73,6 @@ fn init_libstore() {
     }
 }
 
-/// # TODO
-/// **Only run this if the "expr" feature flag was enabled**
-//
 /// # Warning
 ///
 /// > Rust's philosophy is that nothing happens before or after main and [ctor](https://github.com/mmastrac/rust-ctor)
