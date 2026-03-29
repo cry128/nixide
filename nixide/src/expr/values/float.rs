@@ -26,13 +26,13 @@ impl Drop for NixFloat {
 
 impl Display for NixFloat {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<float>")
+        write!(f, "{}", self.value())
     }
 }
 
 impl Debug for NixFloat {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixFloat(${})", self.value())
+        write!(f, "NixFloat({})", self.value())
     }
 }
 
@@ -79,7 +79,12 @@ impl NixFloat {
     /// Returns a shared reference to the underlying value.
     ///
     #[inline]
-    fn value(&self) -> &f64 {
+    pub fn value(&self) -> &f64 {
         &self.value
+    }
+
+    #[inline]
+    pub fn as_float(&self) -> f64 {
+        self.value
     }
 }

@@ -27,13 +27,13 @@ impl Drop for NixBool {
 
 impl Display for NixBool {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<bool>")
+        write!(f, "{}", self.value())
     }
 }
 
 impl Debug for NixBool {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixBool(${})", self.value)
+        write!(f, "NixBool({})", self.value)
     }
 }
 
@@ -80,7 +80,12 @@ impl NixBool {
     /// Returns a shared reference to the underlying value.
     ///
     #[inline]
-    fn value(&self) -> &bool {
+    pub fn value(&self) -> &bool {
         &self.value
+    }
+
+    #[inline]
+    pub fn as_bool(&self) -> bool {
+        self.value
     }
 }

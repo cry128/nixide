@@ -65,11 +65,11 @@ impl NixValue for NixThunk {
 }
 
 impl NixThunk {
-    fn to_inner(self) -> NonNull<sys::nix_value> {
-        self.inner
-    }
+    // fn to_inner(self) -> NonNull<sys::nix_value> {
+    //     self.inner
+    // }
 
-    fn eval(self) -> Value {
+    pub fn eval(self) -> Value {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_value_force(
                 ctx.as_ptr(),

@@ -28,13 +28,13 @@ impl Drop for NixString {
 
 impl Display for NixString {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<string>")
+        write!(f, "{}", self.value())
     }
 }
 
 impl Debug for NixString {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixString(\"${}\")", self.value())
+        write!(f, "NixString(\"{}\")", self.value())
     }
 }
 
@@ -86,7 +86,12 @@ impl NixString {
     /// Returns a shared reference to the underlying value.
     ///
     #[inline]
-    fn value(&self) -> &String {
+    pub fn value(&self) -> &String {
         &self.value
+    }
+
+    #[inline]
+    pub fn as_string(&self) -> String {
+        self.value.clone()
     }
 }

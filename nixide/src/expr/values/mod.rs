@@ -12,7 +12,7 @@ mod thunk;
 
 pub use attrs::NixAttrs;
 pub use bool::NixBool;
-pub use external::NixExternal;
+// pub use external::NixExternal;
 // pub use failed::NixFailed; // only in latest nix version
 pub use float::NixFloat;
 pub use function::NixFunction;
@@ -24,7 +24,7 @@ pub use string::NixString;
 pub use thunk::NixThunk;
 
 use std::cell::RefCell;
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
 use std::rc::Rc;
 
@@ -107,12 +107,8 @@ pub enum Value {
 
     /// TODO
     Function(NixFunction),
-
-    /// TODO
-    External(NixExternal),
-
-    /// TODO
-    Failed(NixFailed),
+    // External(NixExternal),
+    // Failed(NixFailed),
 }
 
 impl From<(NonNull<sys::nix_value>, Rc<RefCell<EvalState>>)> for Value {
@@ -142,13 +138,61 @@ impl From<(NonNull<sys::nix_value>, Rc<RefCell<EvalState>>)> for Value {
             ValueType_NIX_TYPE_FUNCTION => {
                 Value::Function(<NixFunction as NixValue>::from(inner, state))
             },
-            ValueType_NIX_TYPE_EXTERNAL => {
-                Value::External(<NixExternal as NixValue>::from(inner, state))
-            },
-            // | sys::ValueType_NIX_TYPE_FAILED => {
+            // ValueType_NIX_TYPE_EXTERNAL => {
+            //     Value::External(<NixExternal as NixValue>::from(inner, state))
+            // },
+            // ValueType_NIX_TYPE_FAILED => {
             //     Value::Failed(<NixFailed as NixValue>::from(inner, state))
             // },
             _ => unreachable!(),
         }
     }
 }
+
+impl Display for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Value::Thunk(value) => write!(f, "{value}"),
+            Value::Int(value) => write!(f, "{value}"),
+            Value::Float(value) => write!(f, "{value}"),
+            Value::Bool(value) => write!(f, "{value}"),
+            Value::String(value) => write!(f, "{value}"),
+            Value::Path(value) => write!(f, "{value}"),
+            Value::Null(value) => write!(f, "{value}"),
+            Value::Attrs(value) => write!(f, "{value}"),
+            Value::List(value) => write!(f, "{value}"),
+            Value::Function(value) => write!(f, "{value}"),
+            // Value::External(value) => write!(f, "{value}"),
+            // Value::Failed(value) => write!(f, "{value}"),
+        }
+    }
+}
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Value::Thunk(value) => write!(f, "Value::Thunk({value:?})"),
+            Value::Int(value) => write!(f, "Value::Int({value:?})"),
+            Value::Float(value) => write!(f, "Value::Float({value:?})"),
+            Value::Bool(value) => write!(f, "Value::Bool({value:?})"),
+            Value::String(value) => write!(f, "Value::String({value:?})"),
+            Value::Path(value) => write!(f, "Value::Path({value:?})"),
+            Value::Null(value) => write!(f, "Value::Null({value:?})"),
+            Value::Attrs(value) => write!(f, "Value::Attrs({value:?})"),
+            Value::List(value) => write!(f, "Value::List({value:?})"),
+            Value::Function(value) => write!(f, "Value::Function({value:?})"),
+            // Value::External(value) => write!(f, "Value::External({value:?})"),
+            // Value::Failed(value) => write!(f, "Value::Failed({value:?})"),
+        }
+    }
+}
+
+// macro_rules! is_type {
+//     ($expr:expr, $tt:tt) => {{
+//         match $expr {
+//             $tt => true,
+//             _ => false,
+//         }
+//     }};
+// }
+// pub(self) use is_type;

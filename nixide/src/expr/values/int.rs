@@ -26,13 +26,13 @@ impl Drop for NixInt {
 
 impl Display for NixInt {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<int>")
+        write!(f, "{}", self.value())
     }
 }
 
 impl Debug for NixInt {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixInt(${})", self.value())
+        write!(f, "NixInt({})", self.value())
     }
 }
 
@@ -77,7 +77,12 @@ impl NixInt {
     /// Returns a shared reference to the underlying value.
     ///
     #[inline]
-    fn value(&self) -> &i64 {
+    pub fn value(&self) -> &i64 {
         &self.value
+    }
+
+    #[inline]
+    pub fn as_int(&self) -> i64 {
+        self.value
     }
 }

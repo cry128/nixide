@@ -28,13 +28,13 @@ impl Drop for NixAttrs {
 
 impl Display for NixAttrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<attrs>")
+        write!(f, "{{ <attrs> }}")
     }
 }
 
 impl Debug for NixAttrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixAttrs")
+        write!(f, "NixAttrs({{ <attrs> }})") // XXX: TODO: format attrNames into here
     }
 }
 

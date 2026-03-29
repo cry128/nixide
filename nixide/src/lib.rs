@@ -1,6 +1,7 @@
 // #![warn(missing_docs)]
 
 #![cfg_attr(nightly, feature(fn_traits))]
+#![cfg_attr(nightly, feature(unboxed_closures))]
 
 pub extern crate libc;
 pub extern crate nixide_sys as sys;

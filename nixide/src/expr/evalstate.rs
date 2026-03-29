@@ -82,7 +82,7 @@ impl EvalState {
             );
             value
         })
-        .map(|ptr| Value::from((ptr, self)))
+        .map(|ptr| Value::from((ptr, std::rc::Rc::new(std::cell::RefCell::new(self)))))
     }
 
     /// Allocate a new value.
@@ -96,7 +96,8 @@ impl EvalState {
             sys::nix_alloc_value(ctx.as_ptr(), self.as_ptr())
         })?;
 
-        Ok(Value::from((inner, self)))
+        // Ok(Value::from((inner, self)))
+        todo!()
     }
 }
 

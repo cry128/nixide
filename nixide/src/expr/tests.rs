@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serial_test::serial;
 
-use super::{EvalStateBuilder, ValueType};
+use super::{EvalStateBuilder, Value};
 use crate::Store;
 
 #[test]
@@ -29,8 +29,12 @@ fn test_simple_evaluation() {
         .eval_from_string("1 + 2", "<eval>")
         .expect("Failed to evaluate expression");
 
-    assert_eq!(result.value_type(), ValueType::Int);
-    assert_eq!(result.as_int().expect("Failed to get int value"), 3);
+    assert!(matches!(result, Value::Int(_)));
+    if let Value::Int(value) = result {
+        assert_eq!(value.as_int(), 3);
+    } else {
+        unreachable!();
+    }
 }
 
 #[test]
@@ -46,22 +50,34 @@ fn test_value_types() {
     let int_val = state
         .eval_from_string("42", "<eval>")
         .expect("Failed to evaluate int");
-    assert_eq!(int_val.value_type(), ValueType::Int);
-    assert_eq!(int_val.as_int().expect("Failed to get int"), 42);
+    assert!(matches!(int_val, Value::Int(_)));
+    if let Value::Int(value) = int_val {
+        assert_eq!(value.as_int(), 42);
+    } else {
+        unreachable!();
+    }
 
     // Test boolean
     let bool_val = state
         .eval_from_string("true", "<eval>")
         .expect("Failed to evaluate bool");
-    assert_eq!(bool_val.value_type(), ValueType::Bool);
-    assert!(bool_val.as_bool().expect("Failed to get bool"));
+    assert!(matches!(bool_val, Value::Bool(_)));
+    if let Value::Bool(value) = bool_val {
+        assert_eq!(value.as_bool(), true);
+    } else {
+        unreachable!();
+    }
 
     // Test string
-    let str_val = state
+    let string_val = state
         .eval_from_string("\"hello\"", "<eval>")
         .expect("Failed to evaluate string");
-    assert_eq!(str_val.value_type(), ValueType::String);
-    assert_eq!(str_val.as_string().expect("Failed to get string"), "hello");
+    assert!(matches!(string_val, Value::String(_)));
+    if let Value::String(value) = string_val {
+        assert_eq!(value.as_string(), "hello");
+    } else {
+        unreachable!();
+    }
 }
 
 #[test]
@@ -78,35 +94,29 @@ fn test_value_formatting() {
         .eval_from_string("42", "<eval>")
         .expect("Failed to evaluate int");
     assert_eq!(format!("{int_val}"), "42");
-    assert_eq!(format!("{int_val:?}"), "Value::Int(42)");
-    assert_eq!(int_val.to_nix_string().expect("Failed to format"), "42");
+    assert_eq!(format!("{int_val:?}"), "Value::Int(NixInt(42))");
 
     // Test boolean formatting
-    let bool_val = state
+    let true_val = state
         .eval_from_string("true", "<eval>")
         .expect("Failed to evaluate bool");
-    assert_eq!(format!("{bool_val}"), "true");
-    assert_eq!(format!("{bool_val:?}"), "Value::Bool(true)");
-    assert_eq!(bool_val.to_nix_string().expect("Failed to format"), "true");
+    assert_eq!(format!("{true_val}"), "true");
+    assert_eq!(format!("{true_val:?}"), "Value::Bool(NixBool(true))");
 
     let false_val = state
         .eval_from_string("false", "<eval>")
         .expect("Failed to evaluate bool");
     assert_eq!(format!("{false_val}"), "false");
-    assert_eq!(
-        false_val.to_nix_string().expect("Failed to format"),
-        "false"
-    );
+    assert_eq!(format!("{false_val:?}"), "Value::Bool(NixBool(false))");
 
     // Test string formatting
     let str_val = state
         .eval_from_string("\"hello world\"", "<eval>")
         .expect("Failed to evaluate string");
     assert_eq!(format!("{str_val}"), "hello world");
-    assert_eq!(format!("{str_val:?}"), "Value::String(\"hello world\")");
     assert_eq!(
-        str_val.to_nix_string().expect("Failed to format"),
-        "\"hello world\""
+        format!("{str_val:?}"),
+        "Value::String(NixString(\"hello world\"))"
     );
 
     // Test string with quotes
@@ -115,8 +125,8 @@ fn test_value_formatting() {
         .expect("Failed to evaluate quoted string");
     assert_eq!(format!("{quoted_str}"), "say \"hello\"");
     assert_eq!(
-        quoted_str.to_nix_string().expect("Failed to format"),
-        "\"say \\\"hello\\\"\""
+        format!("{quoted_str:?}"),
+        "Value::String(NixString(say \"hello\"))"
     );
 
     // Test null formatting
@@ -124,8 +134,7 @@ fn test_value_formatting() {
         .eval_from_string("null", "<eval>")
         .expect("Failed to evaluate null");
     assert_eq!(format!("{null_val}"), "null");
-    assert_eq!(format!("{null_val:?}"), "Value::Null");
-    assert_eq!(null_val.to_nix_string().expect("Failed to format"), "null");
+    assert_eq!(format!("{null_val:?}"), "Value::Null(NixNull)");
 
     // Test collection formatting
     let attrs_val = state

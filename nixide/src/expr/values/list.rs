@@ -26,13 +26,13 @@ impl Drop for NixList {
 
 impl Display for NixList {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<list>")
+        write!(f, "[ <list> ]")
     }
 }
 
 impl Debug for NixList {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixList")
+        write!(f, "NixList([ <list> ])")
     }
 }
 
@@ -76,7 +76,7 @@ impl NixValue for NixList {
 impl NixList {
     /// Forces the evaluation on all elements of the list.
     ///
-    fn as_vec(&self) -> Vec<Value> {
+    pub fn as_vec(&self) -> Vec<Value> {
         // XXX: TODO: should I just return a LazyArray instead?
         let mut value = Vec::new();
         for i in 0..self.len() {
@@ -86,7 +86,7 @@ impl NixList {
         value
     }
 
-    fn as_vec_lazy(&self) -> Vec<NixThunk> {
+    pub fn as_vec_lazy(&self) -> Vec<NixThunk> {
         // XXX: TODO: should I just return a LazyArray instead?
         let mut value = Vec::new();
         for i in 0..self.len() {
@@ -99,14 +99,14 @@ impl NixList {
     /// Get the length of a list. This function preserves
     /// laziness and does not evaluate the internal fields.
     ///
-    fn len(&self) -> u32 {
+    pub fn len(&self) -> u32 {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_list_size(ctx.as_ptr(), self.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err))
     }
 
-    fn get(&self, index: u32) -> Value {
+    pub fn get(&self, index: u32) -> Value {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_list_byidx(
                 ctx.as_ptr(),
@@ -120,7 +120,7 @@ impl NixList {
         Value::from((inner, self.state.clone()))
     }
 
-    fn get_lazy(&self, index: u32) -> NixThunk {
+    pub fn get_lazy(&self, index: u32) -> NixThunk {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_list_byidx_lazy(
                 ctx.as_ptr(),

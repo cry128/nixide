@@ -29,13 +29,13 @@ impl Drop for NixPath {
 
 impl Display for NixPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "<path>")
+        write!(f, "{}", self.value.display())
     }
 }
 
 impl Debug for NixPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "NixPath(\"${}\")", self.value().display())
+        write!(f, "NixPath(\"{}\")", self.value().display())
     }
 }
 
@@ -82,7 +82,12 @@ impl NixPath {
     /// Returns a shared reference to the underlying value.
     ///
     #[inline]
-    fn value(&self) -> &PathBuf {
+    pub fn value(&self) -> &PathBuf {
         &self.value
+    }
+
+    #[inline]
+    pub fn as_path(&self) -> PathBuf {
+        self.value.clone()
     }
 }

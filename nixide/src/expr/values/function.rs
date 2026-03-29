@@ -74,14 +74,8 @@ impl NixValue for NixFunction {
     }
 }
 
-// impl Fn<(Value,)> for NixFunction {
-//     extern "rust-call" fn call(&self, args: (Value,)) -> Value {
-//         args.0
-//     }
-// }
-
 impl NixFunction {
-    fn call<T>(&self, arg: &T) -> Value
+    pub fn call<T>(&self, arg: &T) -> Value
     where
         T: NixValue,
     {
@@ -104,7 +98,7 @@ impl NixFunction {
         Value::from((inner, self.state.clone()))
     }
 
-    fn call_many<T>(&self, args: &[&T]) -> Value
+    pub fn call_many<T>(&self, args: &[&T]) -> Value
     where
         T: NixValue,
     {
@@ -128,3 +122,13 @@ impl NixFunction {
         Value::from((inner, self.state.clone()))
     }
 }
+
+// #[cfg(nightly)]
+// impl<T> Fn<(&T,)> for NixFunction
+// where
+//     T: NixValue,
+// {
+//     extern "rust-call" fn call(&self, args: (&T,)) -> Value {
+//         self.call(args.0)
+//     }
+// }
