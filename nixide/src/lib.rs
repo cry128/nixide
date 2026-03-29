@@ -81,7 +81,7 @@ fn init_libstore() {
 /// > that does not rely on Rust's stdlib services.
 /// >  - Excerpt from the [github:mmastrac/rust-ctor README.md](https://github.com/mmastrac/rust-ctor?tab=readme-ov-file#warnings)
 #[ctor]
-#[cfg(feature = "expr")]
+#[cfg(feature = "exprs")]
 fn init_libexpr() {
     unsafe {
         INIT_LIBEXPR_STATUS = Some(util::wrap::nix_fn!(|ctx: &errors::ErrorContext| unsafe {
