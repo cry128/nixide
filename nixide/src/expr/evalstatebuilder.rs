@@ -3,6 +3,8 @@ use std::ptr::{self, NonNull};
 use std::sync::Arc;
 
 use super::EvalState;
+#[cfg(feature = "flakes")]
+use crate::FlakeSettings;
 use crate::Store;
 use crate::errors::{ErrorContext, NixideResult};
 use crate::sys;
@@ -65,11 +67,6 @@ impl EvalStateBuilder {
     ///
     /// Returns an error if the evaluation state cannot be built.
     pub fn build(self) -> NixideResult<EvalState> {
-        // Load configuration first
-        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_eval_state_builder_load(ctx.as_ptr(), self.as_ptr())
-        })?;
-
         // Build the state
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_eval_state_build(ctx.as_ptr(), self.as_ptr())
@@ -79,19 +76,39 @@ impl EvalStateBuilder {
     }
 
     // XXX: TODO
-    // fn set_flake_settings(FlakeSettings) { }
+    #[cfg(feature = "flakes")]
+    fn set_flake_settings(self, settings: FlakeSettings) -> NixideResult<Self> {
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_flake_settings_add_to_eval_state_builder(
+                ctx.as_ptr(),
+                settings.as_ptr(),
+                self.as_ptr(),
+            );
+        })?;
+
+        Ok(self)
+    }
+
+    fn load_ambient_settings(self) -> NixideResult<Self> {
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_eval_state_builder_load(ctx.as_ptr(), self.as_ptr());
+        })?;
+
+        Ok(self)
+    }
 
     fn set_lookup_path<P: AsRef<str>>(self, paths: Vec<P>) -> NixideResult<Self> {
         let paths_len = paths.len();
         let paths_capacity = paths.capacity();
 
+        // XXX: TODO: use the `AsCArray` trait instead
         let mut ptrs: Vec<*const c_char> = paths
             .into_iter()
             .map(|p| {
                 CString::new(p.as_ref())
                     .unwrap_or_else(|err| {
                         panic_issue_call_failed!(
-                            "Given string {} contains a NUL byte ({})",
+                            "given string {} contains a NUL byte ({})",
                             p.as_ref(),
                             err
                         )
@@ -111,6 +128,7 @@ impl EvalStateBuilder {
         })
         .map(|()| self);
 
+        // ensure all allocated memory is dropped
         unsafe {
             Vec::from_raw_parts(ptr, paths_len, paths_capacity)
                 .into_iter()
