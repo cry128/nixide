@@ -38,7 +38,7 @@ macro_rules! nonnull {
             ::std::option::Option::Some(p) => ::std::result::Result::Ok(p),
             ::std::option::Option::None => {
                 ::std::result::Result::Err($crate::errors::new_nixide_error!(NullPtr))
-            }
+            },
         }
     }};
 }
@@ -57,9 +57,7 @@ macro_rules! nix_fn {
 pub(crate) use nix_fn;
 
 macro_rules! nix_ptr_fn {
-    ($callback:expr $(,)? ) => {{
-        $crate::util::wrap::nix_fn!($callback).and_then(|ptr| $crate::util::wrap::nonnull!(ptr))
-    }};
+    ($callback:expr $(,)? ) => {{ $crate::util::wrap::nix_fn!($callback).and_then(|ptr| $crate::util::wrap::nonnull!(ptr)) }};
 }
 pub(crate) use nix_ptr_fn;
 
@@ -114,34 +112,25 @@ pub(crate) use nix_callback;
 
 macro_rules! nix_string_callback {
     ($function:expr $(,)?) => {{
-        #[repr(C)]
-        struct __ReturnType {
-            start: *const ::std::ffi::c_char,
-            n: ::std::ffi::c_uint,
-        }
-
         let __result = $crate::util::wrap::nix_callback!(
-            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> (*const ::std::ffi::c_char, ::std::ffi::c_uint) {
+            |start: *const ::std::ffi::c_char, n: ::std::ffi::c_uint; userdata: ();| -> $crate::NixideResult<String> {
                 unsafe {
                     let retval = &raw mut (*userdata).retval;
-                    retval.write((start, n))
+                    retval.write($crate::stdext::CCharPtrExt::to_utf8_string_n(start, n as usize))
                 }
             },
             $function
         );
 
-        __result.and_then(|(start, n)| {
-            let __return = $crate::stdext::CCharPtrExt::to_utf8_string_n(start, n as usize);
-
-            __return
-        })
+        match __result {
+            Ok(res) => res,
+            Err(res) => Err(res),
+        }
     }};
 }
 pub(crate) use nix_string_callback;
 
 macro_rules! nix_pathbuf_callback {
-    ($function:expr $(,)?) => {{
-        $crate::util::wrap::nix_string_callback!($function).map(::std::path::PathBuf::from)
-    }};
+    ($function:expr $(,)?) => {{ $crate::util::wrap::nix_string_callback!($function).map(::std::path::PathBuf::from) }};
 }
 pub(crate) use nix_pathbuf_callback;

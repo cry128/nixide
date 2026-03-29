@@ -1,9 +1,9 @@
-use std::ffi::{c_char, CStr};
+use std::ffi::{CStr, c_char};
 use std::slice::from_raw_parts;
 use std::str::from_utf8;
 
-use crate::errors::new_nixide_error;
 use crate::NixideResult;
+use crate::errors::new_nixide_error;
 
 pub trait AsCPtr<T> {
     #[allow(unused)]
@@ -56,7 +56,7 @@ impl CCharPtrExt for *const c_char {
         if self.is_null() || n == 0 {
             return Err(new_nixide_error!(NullPtr));
         }
-        let bytes = unsafe { from_raw_parts(self.cast::<u8>(), n as usize) };
+        let bytes = unsafe { from_raw_parts(self as *const u8, n as usize) };
         match from_utf8(bytes) {
             Ok(s) => Ok(s.to_string()),
             Err(_) => Err(new_nixide_error!(StringNotUtf8)),

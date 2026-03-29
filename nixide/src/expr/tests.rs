@@ -126,7 +126,7 @@ fn test_value_formatting() {
     assert_eq!(format!("{quoted_str}"), "say \"hello\"");
     assert_eq!(
         format!("{quoted_str:?}"),
-        "Value::String(NixString(say \"hello\"))"
+        "Value::String(NixString(\"say \"hello\"\"))"
     );
 
     // Test null formatting
@@ -141,11 +141,14 @@ fn test_value_formatting() {
         .eval_from_string("{ a = 1; }", "<eval>")
         .expect("Failed to evaluate attrs");
     assert_eq!(format!("{attrs_val}"), "{ <attrs> }");
-    assert_eq!(format!("{attrs_val:?}"), "Value::Attrs({ <attrs> })");
+    assert_eq!(
+        format!("{attrs_val:?}"),
+        "Value::Attrs(NixAttrs({ <attrs> }))"
+    );
 
     let list_val = state
         .eval_from_string("[ 1 2 3 ]", "<eval>")
         .expect("Failed to evaluate list");
     assert_eq!(format!("{list_val}"), "[ <list> ]");
-    assert_eq!(format!("{list_val:?}"), "Value::List([ <list> ])");
+    assert_eq!(format!("{list_val:?}"), "Value::List(NixList([ <list> ]))");
 }
