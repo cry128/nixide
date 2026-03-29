@@ -5,12 +5,12 @@ use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
+use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{EvalState, sys};
 
 pub struct NixNull {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
 impl Drop for NixNull {
@@ -57,7 +57,7 @@ impl NixValue for NixNull {
         sys::ValueType_NIX_TYPE_NULL
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         Self { inner, state }
     }
 }

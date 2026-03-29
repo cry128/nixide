@@ -5,14 +5,13 @@ use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
 use crate::errors::ErrorContext;
+use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::{EvalState, sys};
 
 pub struct NixList {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
-    value: i64,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
 impl Drop for NixList {
@@ -59,17 +58,8 @@ impl NixValue for NixList {
         sys::ValueType_NIX_TYPE_LIST
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
-        let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_get_int(ctx.as_ptr(), inner.as_ptr())
-        })
-        .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
-
-        Self {
-            inner,
-            state,
-            value,
-        }
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+        Self { inner, state }
     }
 }
 

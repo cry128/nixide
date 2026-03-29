@@ -45,7 +45,7 @@ pub trait NixValue: Drop + Display + Debug + AsInnerPtr<sys::nix_value> {
     fn type_id(&self) -> sys::ValueType;
 
     /// TODO
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self;
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self;
 }
 
 /// A Nix value
@@ -111,8 +111,18 @@ pub enum Value {
     // Failed(NixFailed),
 }
 
-impl From<(NonNull<sys::nix_value>, Rc<RefCell<EvalState>>)> for Value {
-    fn from(value: (NonNull<sys::nix_value>, Rc<RefCell<EvalState>>)) -> Self {
+impl
+    From<(
+        NonNull<sys::nix_value>,
+        Rc<RefCell<NonNull<sys::EvalState>>>,
+    )> for Value
+{
+    fn from(
+        value: (
+            NonNull<sys::nix_value>,
+            Rc<RefCell<NonNull<sys::EvalState>>>,
+        ),
+    ) -> Self {
         let (inner, state) = value;
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -125,6 +135,7 @@ impl From<(NonNull<sys::nix_value>, Rc<RefCell<EvalState>>)> for Value {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
+        #[allow(non_upper_case_globals)]
         match type_id {
             ValueType_NIX_TYPE_THUNK => Value::Thunk(<NixThunk as NixValue>::from(inner, state)),
             ValueType_NIX_TYPE_INT => Value::Int(<NixInt as NixValue>::from(inner, state)),

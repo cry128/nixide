@@ -4,16 +4,16 @@ use std::ptr::{self, NonNull};
 use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
+use crate::NixError;
 use crate::errors::{ErrorContext, NixideError};
 use crate::stdext::{AsCPtr, CCharPtrExt};
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::{EvalState, NixError};
 
 pub struct NixAttrs {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     len: u32,
 }
 
@@ -61,7 +61,7 @@ impl NixValue for NixAttrs {
         sys::ValueType_NIX_TYPE_ATTRS
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let len = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_attrs_size(ctx.as_ptr(), inner.as_ptr())
         })
@@ -88,7 +88,7 @@ impl NixAttrs {
             sys::nix_get_attr_byidx(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.borrow_mut().as_ptr(),
                 index,
                 name_ptr,
             )
@@ -115,7 +115,7 @@ impl NixAttrs {
             sys::nix_get_attr_byidx_lazy(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.borrow_mut().as_ptr(),
                 index,
                 name_ptr,
             )
@@ -140,7 +140,7 @@ impl NixAttrs {
             sys::nix_get_attr_name_byidx(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.borrow_mut().as_ptr(),
                 index,
             )
         })
@@ -161,7 +161,7 @@ impl NixAttrs {
             sys::nix_get_attr_byname(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.borrow_mut().as_ptr(),
                 name.as_ref()
                     .into_c_ptr()
                     .unwrap_or_else(|err| panic_issue_call_failed!("{}", err)),
@@ -187,7 +187,7 @@ impl NixAttrs {
             sys::nix_get_attr_byname_lazy(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.borrow_mut().as_ptr(),
                 name.as_ref()
                     .into_c_ptr()
                     .unwrap_or_else(|err| panic_issue_call_failed!("{}", err)),

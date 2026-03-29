@@ -4,7 +4,6 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 
 use super::{NixValue, Value};
-use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -12,7 +11,7 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixThunk {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
 impl Drop for NixThunk {
@@ -59,7 +58,7 @@ impl NixValue for NixThunk {
         sys::ValueType_NIX_TYPE_THUNK
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         Self { inner, state }
     }
 }

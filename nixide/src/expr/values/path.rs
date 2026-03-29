@@ -7,14 +7,14 @@ use std::rc::Rc;
 use super::NixValue;
 use crate::errors::ErrorContext;
 use crate::stdext::CCharPtrExt;
+use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{EvalState, sys};
 
 pub struct NixPath {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: PathBuf,
 }
 
@@ -62,7 +62,7 @@ impl NixValue for NixPath {
         sys::ValueType_NIX_TYPE_PATH
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_path_string(ctx.as_ptr(), inner.as_ptr())
         })

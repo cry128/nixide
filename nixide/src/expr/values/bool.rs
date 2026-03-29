@@ -5,14 +5,14 @@ use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
+use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{EvalState, sys};
 
 pub struct NixBool {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: bool,
 }
 
@@ -60,7 +60,7 @@ impl NixValue for NixBool {
         sys::ValueType_NIX_TYPE_BOOL
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_bool(ctx.as_ptr(), inner.as_ptr())
         })

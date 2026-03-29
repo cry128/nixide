@@ -5,13 +5,13 @@ use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
+use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::{EvalState, sys};
 
 pub struct NixInt {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<EvalState>>,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: i64,
 }
 
@@ -59,7 +59,7 @@ impl NixValue for NixInt {
         sys::ValueType_NIX_TYPE_INT
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<EvalState>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_int(ctx.as_ptr(), inner.as_ptr())
         })
