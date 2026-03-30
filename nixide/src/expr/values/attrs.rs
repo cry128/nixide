@@ -4,12 +4,12 @@ use std::ptr::{self, NonNull};
 use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
+use crate::NixError;
 use crate::errors::{ErrorContext, NixideError};
 use crate::stdext::{AsCPtr, CCharPtrExt};
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::{EvalState, NixError};
 
 pub struct NixAttrs {
     inner: NonNull<sys::nix_value>,
@@ -78,17 +78,13 @@ impl NixValue for NixAttrs {
         sys::ValueType_NIX_TYPE_ATTRS
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let len = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_attrs_size(ctx.as_ptr(), inner.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Self {
-            inner,
-            state: state.inner_ref().clone(),
-            len,
-        }
+        Self { inner, state, len }
     }
 }
 
@@ -120,7 +116,7 @@ impl NixAttrs {
             .to_utf8_string()
             .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        let value = Value::from((inner, &self.state));
+        let value = Value::from((inner, self.state.clone()));
 
         Some((name, value))
     }
@@ -147,7 +143,7 @@ impl NixAttrs {
             .to_utf8_string()
             .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        let value = <NixThunk as NixValue>::from(inner, &self.state);
+        let value = <NixThunk as NixValue>::from(inner, self.state.clone());
 
         Some((name, value))
     }
@@ -190,7 +186,7 @@ impl NixAttrs {
         });
 
         match result {
-            Ok(inner) => Some(Value::from((inner, &self.state))),
+            Ok(inner) => Some(Value::from((inner, self.state.clone()))),
 
             Err(NixideError::NixError {
                 err: NixError::KeyNotFound(_),
@@ -216,7 +212,7 @@ impl NixAttrs {
         });
 
         match result {
-            Ok(inner) => Some(<NixThunk as NixValue>::from(inner, &self.state)),
+            Ok(inner) => Some(<NixThunk as NixValue>::from(inner, self.state.clone())),
 
             Err(NixideError::NixError {
                 err: NixError::KeyNotFound(_),

@@ -101,7 +101,7 @@ impl EvalState {
             sys::nix_expr_eval_from_string(ctx.as_ptr(), self.as_ptr(), expr, path, value.as_ptr());
             value
         })
-        .map(|ptr| Value::from((ptr, self)))
+        .map(|ptr| Value::from((ptr, self.inner_ref().clone())))
     }
 }
 

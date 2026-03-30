@@ -4,7 +4,6 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 
 use super::NixValue;
-use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -77,7 +76,7 @@ impl NixValue for NixFloat {
         sys::ValueType_NIX_TYPE_FLOAT
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_float(ctx.as_ptr(), inner.as_ptr())
         })
@@ -87,7 +86,7 @@ impl NixValue for NixFloat {
 
         Self {
             inner,
-            state: state.inner_ref().clone(),
+            state,
             value,
         }
     }

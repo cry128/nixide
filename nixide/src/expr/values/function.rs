@@ -6,9 +6,9 @@ use std::rc::Rc;
 use super::{NixValue, Value};
 use crate::errors::ErrorContext;
 use crate::stdext::SliceExt;
+use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
-use crate::{EvalState, sys};
 
 pub struct NixFunction {
     inner: NonNull<sys::nix_value>,
@@ -75,11 +75,8 @@ impl NixValue for NixFunction {
         sys::ValueType_NIX_TYPE_FUNCTION
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
-        Self {
-            inner,
-            state: state.inner_ref().clone(),
-        }
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+        Self { inner, state }
     }
 }
 
@@ -104,7 +101,7 @@ impl NixFunction {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, &self.state))
+        Value::from((inner, self.state.clone()))
     }
 
     pub fn call_many<T>(&self, args: &[&T]) -> Value
@@ -128,7 +125,7 @@ impl NixFunction {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, &self.state))
+        Value::from((inner, self.state.clone()))
     }
 }
 

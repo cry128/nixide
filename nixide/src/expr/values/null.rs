@@ -4,7 +4,6 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 
 use super::NixValue;
-use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrap;
@@ -75,10 +74,7 @@ impl NixValue for NixNull {
         sys::ValueType_NIX_TYPE_NULL
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
-        Self {
-            inner,
-            state: state.inner_ref().clone(),
-        }
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+        Self { inner, state }
     }
 }

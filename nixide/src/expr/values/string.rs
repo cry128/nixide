@@ -6,10 +6,10 @@ use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
+use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{EvalState, sys};
 
 pub struct NixString {
     inner: NonNull<sys::nix_value>,
@@ -78,7 +78,7 @@ impl NixValue for NixString {
         sys::ValueType_NIX_TYPE_STRING
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         let value = wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_get_string(
@@ -93,7 +93,7 @@ impl NixValue for NixString {
 
         Self {
             inner,
-            state: state.inner_ref().clone(),
+            state,
             value,
         }
     }

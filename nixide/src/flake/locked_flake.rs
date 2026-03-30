@@ -1,6 +1,5 @@
 // XXX: TODO: find a way to read directly from FlakeSettings and FetchersSettings (the C++ classes)
 
-use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use super::{FetchersSettings, FlakeLockFlags, FlakeReference, FlakeSettings};
@@ -130,8 +129,8 @@ mod tests {
     fn flake_settings_getflake_exists() {
         init();
 
-        let store = Store::default().expect("Failed to open store connection");
-        let state = EvalStateBuilder::new(&store)
+        let store_ref = Store::default().expect("Failed to open store connection");
+        let state = EvalStateBuilder::new(store_ref.clone())
             .unwrap()
             .flakes()
             .unwrap()
@@ -165,10 +164,10 @@ mod tests {
         )
         .unwrap();
 
-        let store = Store::default().unwrap();
+        let store_ref = Store::default().unwrap();
         let flake_settings = FlakeSettings::new().unwrap();
 
-        let mut eval_state = EvalStateBuilder::new(&store)
+        let mut eval_state = EvalStateBuilder::new(store_ref.clone())
             .unwrap()
             .set_flake_settings(&flake_settings)
             .unwrap()
@@ -214,10 +213,10 @@ mod tests {
     fn flake_lock_load_flake_with_flags() {
         init();
 
-        let store = Store::default().unwrap();
+        let store_ref = Store::default().unwrap();
         let fetchers_settings = FetchersSettings::new().unwrap();
         let flake_settings = FlakeSettings::new().unwrap();
-        let mut eval_state = EvalStateBuilder::new(&store)
+        let mut eval_state = EvalStateBuilder::new(store_ref.clone())
             .unwrap()
             .set_flake_settings(&flake_settings)
             .unwrap()

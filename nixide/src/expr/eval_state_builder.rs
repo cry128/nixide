@@ -22,22 +22,6 @@ pub struct EvalStateBuilder {
     store: Rc<RefCell<Store>>,
 }
 
-// impl Clone for EvalStateBuilder {
-//     fn clone(&self) -> Self {
-//         let inner = self.inner.clone();
-//
-//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
-//         })
-//         .unwrap();
-//
-//         Self {
-//             inner,
-//             store: self.store.clone(),
-//         }
-//     }
-// }
-
 impl AsInnerPtr<sys::nix_eval_state_builder> for EvalStateBuilder {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::nix_eval_state_builder {

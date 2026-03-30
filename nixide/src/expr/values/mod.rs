@@ -23,10 +23,11 @@ pub use path::NixPath;
 pub use string::NixString;
 pub use thunk::NixThunk;
 
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
-use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::sys::{
@@ -43,7 +44,7 @@ pub trait NixValue: Clone + Drop + Display + Debug + AsInnerPtr<sys::nix_value> 
     fn type_id(&self) -> sys::ValueType;
 
     /// TODO
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self;
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self;
 }
 
 /// A Nix value
@@ -109,12 +110,22 @@ pub enum Value {
     // Failed(NixFailed),
 }
 
-impl From<(NonNull<sys::nix_value>, &EvalState)> for Value {
-    fn from(value: (NonNull<sys::nix_value>, &EvalState)) -> Self {
+impl
+    From<(
+        NonNull<sys::nix_value>,
+        Rc<RefCell<NonNull<sys::EvalState>>>,
+    )> for Value
+{
+    fn from(
+        value: (
+            NonNull<sys::nix_value>,
+            Rc<RefCell<NonNull<sys::EvalState>>>,
+        ),
+    ) -> Self {
         let (inner, state) = value;
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_value_force(ctx.as_ptr(), state.as_ptr(), inner.as_ptr())
+            sys::nix_value_force(ctx.as_ptr(), state.borrow().as_ptr(), inner.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 

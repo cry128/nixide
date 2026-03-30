@@ -4,7 +4,6 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
-use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -75,11 +74,8 @@ impl NixValue for NixList {
         sys::ValueType_NIX_TYPE_LIST
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
-        Self {
-            inner,
-            state: state.inner_ref().clone(),
-        }
+    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+        Self { inner, state }
     }
 }
 
@@ -127,7 +123,7 @@ impl NixList {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, &self.state))
+        Value::from((inner, self.state.clone()))
     }
 
     pub fn get_lazy(&self, index: u32) -> NixThunk {
@@ -141,6 +137,6 @@ impl NixList {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        <NixThunk as NixValue>::from(inner, &self.state)
+        <NixThunk as NixValue>::from(inner, self.state.clone())
     }
 }

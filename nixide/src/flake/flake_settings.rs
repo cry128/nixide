@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use crate::NixideResult;
@@ -19,19 +18,6 @@ impl Drop for FlakeSettings {
         }
     }
 }
-
-// impl Clone for FlakeSettings {
-//     fn clone(&self) -> Self {
-//         let inner = self.inner.clone();
-//
-//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
-//         })
-//         .unwrap();
-//
-//         Self { inner }
-//     }
-// }
 
 impl AsInnerPtr<sys::nix_flake_settings> for FlakeSettings {
     #[inline]

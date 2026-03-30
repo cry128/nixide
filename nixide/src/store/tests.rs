@@ -1,10 +1,7 @@
 use serial_test::serial;
 
 use super::{Store, StorePath};
-use crate::errors::ErrorContext;
 use crate::init::LIBNIX_INIT_STATUS;
-use crate::sys;
-use crate::util::wrappers::AsInnerPtr as _;
 
 #[test]
 #[serial]
@@ -22,7 +19,7 @@ fn test_store_path_parse() {
     let store = Store::default().expect("Failed to open store");
 
     // Try parsing a well-formed store path
-    let result = StorePath::fake_path(&store);
+    let result = StorePath::fake_path(&store.borrow());
     result.expect("idk hopefully this fails");
 }
 
@@ -34,7 +31,8 @@ fn test_store_path_clone() {
     let store = Store::default().expect("Failed to open store");
 
     // Try to get a valid store path by parsing
-    let path = StorePath::fake_path(&store).expect("Failed to create `StorePath::fake_path`");
+    let path =
+        StorePath::fake_path(&store.borrow()).expect("Failed to create `StorePath::fake_path`");
     let cloned = path.clone();
 
     // Assert that the cloned path has the same name as the original
