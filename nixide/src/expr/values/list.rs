@@ -1,9 +1,9 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
+use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -11,7 +11,23 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixList {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
+}
+
+impl Clone for NixList {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl Drop for NixList {
@@ -58,8 +74,11 @@ impl NixValue for NixList {
         sys::ValueType_NIX_TYPE_LIST
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
-        Self { inner, state }
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+        Self {
+            inner,
+            state: state.clone(),
+        }
     }
 }
 
@@ -98,29 +117,19 @@ impl NixList {
 
     pub fn get(&self, index: u32) -> Value {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_get_list_byidx(
-                ctx.as_ptr(),
-                self.as_ptr(),
-                self.state.borrow().as_ptr(),
-                index,
-            )
+            sys::nix_get_list_byidx(ctx.as_ptr(), self.as_ptr(), self.state.as_ptr(), index)
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, self.state.clone()))
+        Value::from((inner, &self.state))
     }
 
     pub fn get_lazy(&self, index: u32) -> NixThunk {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_get_list_byidx_lazy(
-                ctx.as_ptr(),
-                self.as_ptr(),
-                self.state.borrow().as_ptr(),
-                index,
-            )
+            sys::nix_get_list_byidx_lazy(ctx.as_ptr(), self.as_ptr(), self.state.as_ptr(), index)
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        <NixThunk as NixValue>::from(inner, self.state.clone())
+        <NixThunk as NixValue>::from(inner, &self.state)
     }
 }

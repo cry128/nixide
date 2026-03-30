@@ -1,52 +1,15 @@
+use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::errors::{ErrorContext, new_nixide_error};
+use crate::NixideResult;
+use crate::errors::ErrorContext;
 use crate::sys;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{EvalStateBuilder, NixideError};
 
 /// Store settings for the flakes feature.
 pub struct FlakeSettings {
-    pub(crate) inner: NonNull<sys::nix_flake_settings>,
-}
-
-impl AsInnerPtr<sys::nix_flake_settings> for FlakeSettings {
-    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_settings {
-        self.inner.as_ptr()
-    }
-}
-
-impl FlakeSettings {
-    pub fn new() -> Result<Self, NixideError> {
-        let ctx = ErrorContext::new();
-        let opt = NonNull::new(unsafe { sys::nix_flake_settings_new(ctx.as_ptr()) });
-
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => match opt {
-                Some(inner) => Ok(FlakeSettings { inner }),
-                None => Err(new_nixide_error!(NullPtr)),
-            },
-        }
-    }
-
-    pub(super) fn add_to_eval_state_builder(
-        &self,
-        builder: &mut EvalStateBuilder,
-    ) -> Result<(), NixideError> {
-        let ctx = ErrorContext::new();
-        unsafe {
-            sys::nix_flake_settings_add_to_eval_state_builder(
-                ctx.as_ptr(),
-                self.as_ptr(),
-                builder.as_ptr(),
-            )
-        };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
-    }
+    inner: NonNull<sys::nix_flake_settings>,
 }
 
 impl Drop for FlakeSettings {
@@ -54,5 +17,45 @@ impl Drop for FlakeSettings {
         unsafe {
             sys::nix_flake_settings_free(self.as_ptr());
         }
+    }
+}
+
+// impl Clone for FlakeSettings {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+//
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self { inner }
+//     }
+// }
+
+impl AsInnerPtr<sys::nix_flake_settings> for FlakeSettings {
+    #[inline]
+    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_settings {
+        self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::nix_flake_settings {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_settings {
+        unsafe { self.inner.as_mut() }
+    }
+}
+
+impl FlakeSettings {
+    pub fn new() -> NixideResult<Self> {
+        let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_flake_settings_new(ctx.as_ptr())
+        })?;
+
+        Ok(Self { inner })
     }
 }

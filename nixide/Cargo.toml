@@ -23,6 +23,7 @@ libc = "0.2.183"
 stdext = "0.3.3"
 ctor = "0.6.3"
 nixide-sys = { path = "../nixide-sys", version = "0.1.0", features = ["nix-util-c", "nix-main-c"]}
+tempfile = "3.27.0"
 
 [dev-dependencies]
 serial_test = "3.4.0"

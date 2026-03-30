@@ -1,19 +1,33 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::{NixValue, Value};
 use crate::errors::ErrorContext;
 use crate::stdext::SliceExt;
-use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
+use crate::{EvalState, sys};
 
 pub struct NixFunction {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
-    value: i64,
+    state: EvalState,
+}
+
+impl Clone for NixFunction {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl Drop for NixFunction {
@@ -60,16 +74,10 @@ impl NixValue for NixFunction {
         sys::ValueType_NIX_TYPE_FUNCTION
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
-        let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_get_int(ctx.as_ptr(), inner.as_ptr())
-        })
-        .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
-
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         Self {
             inner,
-            state,
-            value,
+            state: state.clone(),
         }
     }
 }
@@ -80,14 +88,14 @@ impl NixFunction {
         T: NixValue,
     {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_alloc_value(ctx.as_ptr(), self.state.borrow().as_ptr())
+            sys::nix_alloc_value(ctx.as_ptr(), self.state.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_value_call(
                 ctx.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.as_ptr(),
                 self.as_ptr(),
                 arg.as_ptr(),
                 inner.as_ptr(),
@@ -95,7 +103,7 @@ impl NixFunction {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, self.state.clone()))
+        Value::from((inner, &self.state))
     }
 
     pub fn call_many<T>(&self, args: &[&T]) -> Value
@@ -103,14 +111,14 @@ impl NixFunction {
         T: NixValue,
     {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_alloc_value(ctx.as_ptr(), self.state.borrow().as_ptr())
+            sys::nix_alloc_value(ctx.as_ptr(), self.state.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_value_call_multi(
                 ctx.as_ptr(),
-                self.state.borrow().as_ptr(),
+                self.state.as_ptr(),
                 self.as_ptr(),
                 args.len(),
                 args.into_c_array(),
@@ -119,7 +127,7 @@ impl NixFunction {
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((inner, self.state.clone()))
+        Value::from((inner, &self.state))
     }
 }
 

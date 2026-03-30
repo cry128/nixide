@@ -1,19 +1,35 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
-use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::{EvalState, sys};
 
 pub struct NixBool {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
     value: bool,
+}
+
+impl Clone for NixBool {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+            value: self.value,
+        }
+    }
 }
 
 impl Drop for NixBool {
@@ -60,7 +76,7 @@ impl NixValue for NixBool {
         sys::ValueType_NIX_TYPE_BOOL
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_bool(ctx.as_ptr(), inner.as_ptr())
         })
@@ -70,7 +86,7 @@ impl NixValue for NixBool {
 
         Self {
             inner,
-            state,
+            state: state.clone(),
             value,
         }
     }

@@ -1,20 +1,36 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::{self, NonNull};
-use std::rc::Rc;
 
 use super::{NixThunk, NixValue, Value};
-use crate::NixError;
 use crate::errors::{ErrorContext, NixideError};
 use crate::stdext::{AsCPtr, CCharPtrExt};
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
+use crate::{EvalState, NixError};
 
 pub struct NixAttrs {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
     len: u32,
+}
+
+impl Clone for NixAttrs {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+            len: self.len,
+        }
+    }
 }
 
 impl Drop for NixAttrs {
@@ -61,13 +77,17 @@ impl NixValue for NixAttrs {
         sys::ValueType_NIX_TYPE_ATTRS
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         let len = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_attrs_size(ctx.as_ptr(), inner.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Self { inner, state, len }
+        Self {
+            inner,
+            state: state.clone(),
+            len,
+        }
     }
 }
 
@@ -88,7 +108,7 @@ impl NixAttrs {
             sys::nix_get_attr_byidx(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow_mut().as_ptr(),
+                self.state.as_ptr(),
                 index,
                 name_ptr,
             )
@@ -99,7 +119,7 @@ impl NixAttrs {
             .to_utf8_string()
             .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        let value = Value::from((inner, self.state.clone()));
+        let value = Value::from((inner, &self.state));
 
         Some((name, value))
     }
@@ -115,7 +135,7 @@ impl NixAttrs {
             sys::nix_get_attr_byidx_lazy(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow_mut().as_ptr(),
+                self.state.as_ptr(),
                 index,
                 name_ptr,
             )
@@ -126,7 +146,7 @@ impl NixAttrs {
             .to_utf8_string()
             .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        let value = <NixThunk as NixValue>::from(inner, self.state.clone());
+        let value = <NixThunk as NixValue>::from(inner, &self.state);
 
         Some((name, value))
     }
@@ -137,12 +157,7 @@ impl NixAttrs {
         }
 
         let name_ptr = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_get_attr_name_byidx(
-                ctx.as_ptr(),
-                self.as_ptr(),
-                self.state.borrow_mut().as_ptr(),
-                index,
-            )
+            sys::nix_get_attr_name_byidx(ctx.as_ptr(), self.as_ptr(), self.state.as_ptr(), index)
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
@@ -161,7 +176,7 @@ impl NixAttrs {
             sys::nix_get_attr_byname(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow_mut().as_ptr(),
+                self.state.as_ptr(),
                 name.as_ref()
                     .into_c_ptr()
                     .unwrap_or_else(|err| panic_issue_call_failed!("{}", err)),
@@ -169,7 +184,7 @@ impl NixAttrs {
         });
 
         match result {
-            Ok(inner) => Some(Value::from((inner, self.state.clone()))),
+            Ok(inner) => Some(Value::from((inner, &self.state))),
 
             Err(NixideError::NixError {
                 err: NixError::KeyNotFound(_),
@@ -187,7 +202,7 @@ impl NixAttrs {
             sys::nix_get_attr_byname_lazy(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                self.state.borrow_mut().as_ptr(),
+                self.state.as_ptr(),
                 name.as_ref()
                     .into_c_ptr()
                     .unwrap_or_else(|err| panic_issue_call_failed!("{}", err)),
@@ -195,7 +210,7 @@ impl NixAttrs {
         });
 
         match result {
-            Ok(inner) => Some(<NixThunk as NixValue>::from(inner, self.state.clone())),
+            Ok(inner) => Some(<NixThunk as NixValue>::from(inner, &self.state)),
 
             Err(NixideError::NixError {
                 err: NixError::KeyNotFound(_),

@@ -1,13 +1,13 @@
 use std::cell::RefCell;
-use std::ffi::c_char;
+use std::ffi::{c_char, c_void};
 use std::ptr::NonNull;
 
 use crate::errors::ErrorContext;
 use crate::expr::values::NixString;
 use crate::stdext::CCharPtrExt;
 use crate::sys;
-use crate::util::wrappers::AsInnerPtr;
 use crate::util::LazyArray;
+use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
 use crate::{EvalState, NixideResult, StorePath};
 
@@ -16,6 +16,23 @@ pub struct RealisedString<'a> {
     pub path: StorePath,
     pub children: LazyArray<StorePath, Box<dyn Fn(usize) -> StorePath + 'a>>,
 }
+
+// impl<'a> Clone for RealisedString<'a> {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+
+//         Self {
+//             inner,
+//             path: self.path.clone(),
+//             children: self.children,
+//         }
+//     }
+// }
 
 impl<'a> AsInnerPtr<sys::nix_realised_string> for RealisedString<'a> {
     #[inline]
@@ -81,7 +98,7 @@ impl<'a> RealisedString<'a> {
             path: Self::parse_path(inner.as_ptr(), state),
             children: LazyArray::new(
                 size,
-                Box::new(|_| StorePath::fake_path(unsafe { state.store_ref() }).unwrap()),
+                Box::new(|_| StorePath::fake_path(state.store_ref()).unwrap()),
             ),
         })
     }
@@ -98,7 +115,7 @@ impl<'a> RealisedString<'a> {
                     err
                 )
             });
-        StorePath::parse(unsafe { state.store_ref() }, &path_str).unwrap_or_else(|err| {
+        StorePath::parse(state.store_ref(), &path_str).unwrap_or_else(|err| {
             panic_issue_call_failed!(
                 "`sys::nix_realised_string_get_buffer_(start|size)` invalid store path ({})",
                 err

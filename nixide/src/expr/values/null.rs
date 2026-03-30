@@ -1,16 +1,33 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::NixValue;
+use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 
 pub struct NixNull {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
+}
+
+impl Clone for NixNull {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl Drop for NixNull {
@@ -57,7 +74,10 @@ impl NixValue for NixNull {
         sys::ValueType_NIX_TYPE_NULL
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
-        Self { inner, state }
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+        Self {
+            inner,
+            state: state.clone(),
+        }
     }
 }

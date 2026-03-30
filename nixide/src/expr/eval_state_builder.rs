@@ -1,6 +1,5 @@
-use std::ffi::{CString, c_char};
+use std::ffi::{CString, c_char, c_void};
 use std::ptr::{self, NonNull};
-use std::sync::Arc;
 
 use super::EvalState;
 #[cfg(feature = "flakes")]
@@ -15,10 +14,27 @@ use crate::util::{panic_issue_call_failed, wrap};
 ///
 /// This allows configuring the evaluation environment before creating
 /// the evaluation state.
+///
 pub struct EvalStateBuilder {
     inner: NonNull<sys::nix_eval_state_builder>,
-    store: Arc<Store>,
+    store: Store,
 }
+
+// impl Clone for EvalStateBuilder {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+//
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self {
+//             inner,
+//             store: self.store.clone(),
+//         }
+//     }
+// }
 
 impl AsInnerPtr<sys::nix_eval_state_builder> for EvalStateBuilder {
     #[inline]
@@ -47,17 +63,15 @@ impl EvalStateBuilder {
     /// # Errors
     ///
     /// Returns an error if the builder cannot be created.
-    pub fn new(store: &Arc<Store>) -> NixideResult<Self> {
+    ///
+    pub fn new(store: &Store) -> NixideResult<Self> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_eval_state_builder_new(ctx.as_ptr(), store.as_ptr())
         })?;
 
-        // sys::nix_eval_state_builder_load(context, builder);
-        // sys::nix_flake_settings_add_to_eval_state_builder(context, settings, builder);
-
         Ok(EvalStateBuilder {
             inner,
-            store: Arc::clone(store),
+            store: store.clone(),
         })
     }
 
@@ -66,18 +80,20 @@ impl EvalStateBuilder {
     /// # Errors
     ///
     /// Returns an error if the evaluation state cannot be built.
+    ///
     pub fn build(self) -> NixideResult<EvalState> {
         // Build the state
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_eval_state_build(ctx.as_ptr(), self.as_ptr())
         })?;
 
-        Ok(EvalState::new(inner, self.store.clone()))
+        Ok(EvalState::new(inner, &self.store))
     }
 
-    // XXX: TODO
+    // XXX: TODO: use `flakes()` instead
+    #[deprecated]
     #[cfg(feature = "flakes")]
-    fn set_flake_settings(self, settings: FlakeSettings) -> NixideResult<Self> {
+    pub fn set_flake_settings(self, settings: &FlakeSettings) -> NixideResult<Self> {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_flake_settings_add_to_eval_state_builder(
                 ctx.as_ptr(),
@@ -89,7 +105,13 @@ impl EvalStateBuilder {
         Ok(self)
     }
 
-    fn load_ambient_settings(self) -> NixideResult<Self> {
+    #[cfg(feature = "flakes")]
+    pub fn flakes(self) -> NixideResult<Self> {
+        #[allow(deprecated)]
+        self.set_flake_settings(&FlakeSettings::new()?)
+    }
+
+    pub fn load_ambient_settings(self) -> NixideResult<Self> {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_eval_state_builder_load(ctx.as_ptr(), self.as_ptr());
         })?;
@@ -97,7 +119,7 @@ impl EvalStateBuilder {
         Ok(self)
     }
 
-    fn set_lookup_path<P: AsRef<str>>(self, paths: Vec<P>) -> NixideResult<Self> {
+    pub fn set_lookup_path<P: AsRef<str>>(self, paths: Vec<P>) -> NixideResult<Self> {
         let paths_len = paths.len();
         let paths_capacity = paths.capacity();
 

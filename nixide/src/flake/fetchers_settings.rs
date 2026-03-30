@@ -1,33 +1,61 @@
+use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::errors::{new_nixide_error, ErrorContext};
+use crate::NixideResult;
+use crate::errors::ErrorContext;
 use crate::sys;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::NixideError;
 
-pub(super) struct FetchersSettings {
-    pub(super) ptr: NonNull<sys::nix_fetchers_settings>,
+pub struct FetchersSettings {
+    inner: NonNull<sys::nix_fetchers_settings>,
 }
 
 impl FetchersSettings {
-    pub fn new() -> Result<Self, NixideError> {
-        let ctx = ErrorContext::new();
-        let ptr = unsafe { sys::nix_fetchers_settings_new(ctx.as_ptr()) };
-        Ok(FetchersSettings {
-            ptr: NonNull::new(ptr).ok_or(new_nixide_error!(NullPtr))?,
-        })
-    }
+    pub fn new() -> NixideResult<Self> {
+        let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_fetchers_settings_new(ctx.as_ptr())
+        })?;
 
-    pub(crate) unsafe fn as_ptr(&self) -> *mut sys::nix_fetchers_settings {
-        self.ptr.as_ptr()
+        Ok(Self { inner })
     }
 }
+
+// impl Clone for FetchersSettings {
+//     fn clone(&self) -> Self {
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self {
+//             inner: self.inner.clone(),
+//         }
+//     }
+// }
 
 impl Drop for FetchersSettings {
     fn drop(&mut self) {
         unsafe {
             sys::nix_fetchers_settings_free(self.as_ptr());
         }
+    }
+}
+
+impl AsInnerPtr<sys::nix_fetchers_settings> for FetchersSettings {
+    #[inline]
+    unsafe fn as_ptr(&self) -> *mut sys::nix_fetchers_settings {
+        self.inner.as_ptr()
+    }
+
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::nix_fetchers_settings {
+        unsafe { self.inner.as_ref() }
+    }
+
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::nix_fetchers_settings {
+        unsafe { self.inner.as_mut() }
     }
 }
 

@@ -1,9 +1,9 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::NixValue;
+use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -11,8 +11,25 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixInt {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
     value: i64,
+}
+
+impl Clone for NixInt {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+            value: self.value,
+        }
+    }
 }
 
 impl Drop for NixInt {
@@ -59,7 +76,7 @@ impl NixValue for NixInt {
         sys::ValueType_NIX_TYPE_INT
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_int(ctx.as_ptr(), inner.as_ptr())
         })
@@ -67,7 +84,7 @@ impl NixValue for NixInt {
 
         Self {
             inner,
-            state,
+            state: state.clone(),
             value,
         }
     }

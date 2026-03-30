@@ -1,20 +1,35 @@
-use std::cell::RefCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
-use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::{EvalState, sys};
 
 pub struct NixString {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
     value: String,
+}
+
+impl Clone for NixString {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+            value: self.value.clone(),
+        }
+    }
 }
 
 impl Drop for NixString {
@@ -61,7 +76,7 @@ impl NixValue for NixString {
         sys::ValueType_NIX_TYPE_STRING
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         let value = wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_get_string(
@@ -76,7 +91,7 @@ impl NixValue for NixString {
 
         Self {
             inner,
-            state,
+            state: state.clone(),
             value,
         }
     }

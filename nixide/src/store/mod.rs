@@ -1,13 +1,4 @@
 // XXX: TODO: should I add support for `nix_libstore_init_no_load_config`
-// XXX: TODO: add support for nix_realised_string_* family of functions
-//   nix_realised_string_get_store_path
-//   nix_realised_string_get_store_path_count
-//   # nix_store_real_path
-//   # nix_store_is_valid_path
-//   # nix_store_get_version
-//   # nix_store_get_uri
-//   # nix_store_get_storedir
-//   # nix_store_copy_closure
 //   nix_libstore_init_no_load_config
 
 #[cfg(test)]
@@ -16,24 +7,37 @@ mod tests;
 mod path;
 pub use path::*;
 
-use std::ffi::{c_char, c_void, CString};
+use std::ffi::{c_char, c_void};
 use std::path::PathBuf;
-use std::ptr::{null, null_mut, NonNull};
-use std::result::Result;
+use std::ptr::{NonNull, null, null_mut};
 
-use crate::errors::{new_nixide_error, ErrorContext};
-use crate::stdext::CCharPtrExt;
+use crate::NixideResult;
+use crate::errors::ErrorContext;
+use crate::stdext::{AsCPtr as _, CCharPtrExt as _};
 use crate::sys;
-use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::{NixideError, NixideResult};
+use crate::util::{panic_issue_call_failed, wrap};
 
 /// Nix store for managing packages and derivations.
 ///
 /// The store provides access to Nix packages, derivations, and store paths.
+///
 pub struct Store {
-    pub(crate) inner: NonNull<sys::Store>,
+    inner: NonNull<sys::Store>,
 }
+
+// impl Clone for Store {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+//
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self { inner }
+//     }
+// }
 
 impl AsInnerPtr<sys::Store> for Store {
     #[inline]
@@ -63,13 +67,19 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error if the store cannot be opened.
-    pub fn open(uri: Option<&str>) -> Result<Self, NixideError> {
-        let uri_ptr = match uri.map(CString::new) {
-            Some(Ok(c_uri)) => c_uri.as_ptr(),
-            Some(Err(_)) => Err(new_nixide_error!(StringNulByte))?,
-            None => null(),
-        };
+    ///
+    pub fn open(uri: &str) -> NixideResult<Self> {
+        Self::open_ptr(uri.as_c_ptr()?)
+    }
 
+    /// Opens a connection to the default Nix store.
+    ///
+    pub fn default() -> NixideResult<Self> {
+        Self::open_ptr(null())
+    }
+
+    #[inline]
+    fn open_ptr(uri_ptr: *const c_char) -> NixideResult<Self> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             // XXX: TODO: allow args to be parsed instead of just `null_mut`
             sys::nix_store_open(ctx.as_ptr(), uri_ptr, null_mut())
@@ -95,6 +105,7 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error if the path cannot be realized.
+    ///
     pub fn realise<F>(
         &self,
         path: &StorePath,
@@ -107,11 +118,11 @@ impl Store {
              -> Vec<(String, StorePath)> {
                 // XXX: TODO: test to see if this is ever null ("out" as a default feels unsafe...)
                 // NOTE: this also ensures `output_name_ptr` isn't null
-                let output_name = output_name_ptr.to_utf8_string().expect("IDK1");
+                let output_name = output_name_ptr.to_utf8_string().unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
                 let inner = wrap::nix_ptr_fn!(|ctx| unsafe {
                     sys::nix_store_path_clone(output_path_ptr as *mut sys::StorePath)
-                }).expect("IDK2");
+                }).unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
                 let store_path = StorePath { inner };
 
                 let callback = unsafe { (*userdata).inner };
@@ -161,14 +172,16 @@ impl Store {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn store_path(&self, path: &str) -> Result<StorePath, NixideError> {
+    ///
+    pub fn store_path(&self, path: &str) -> NixideResult<StorePath> {
         StorePath::parse(self, path)
     }
 
     /// Get the version of a Nix store
     ///
     /// If the store doesn't have a version (like the dummy store), returns None
-    pub fn version(&self) -> Result<String, NixideError> {
+    ///
+    pub fn version(&self) -> NixideResult<String> {
         wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_version(
@@ -182,7 +195,8 @@ impl Store {
     }
 
     /// Get the URI of a Nix store
-    pub fn uri(&self) -> Result<String, NixideError> {
+    ///
+    pub fn uri(&self) -> NixideResult<String> {
         wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_uri(
@@ -195,7 +209,7 @@ impl Store {
         )
     }
 
-    pub fn store_dir(&self) -> Result<PathBuf, NixideError> {
+    pub fn store_dir(&self) -> NixideResult<PathBuf> {
         wrap::nix_pathbuf_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_store_get_storedir(
@@ -208,34 +222,26 @@ impl Store {
         )
     }
 
-    pub fn copy_closure_to(
-        &self,
-        dst_store: &Store,
-        store_path: &StorePath,
-    ) -> Result<(), NixideError> {
+    pub fn copy_closure_to(&self, dst_store: &Store, store_path: &StorePath) -> NixideResult<()> {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_store_copy_closure(
                 ctx.as_ptr(),
                 self.as_ptr(),
                 dst_store.as_ptr(),
                 store_path.as_ptr(),
-            ); // semi-colon to return () and not i32
+            );
         })
     }
 
-    pub fn copy_closure_from(
-        &self,
-        src_store: &Store,
-        store_path: &StorePath,
-    ) -> Result<(), NixideError> {
+    pub fn copy_closure_from(&self, src_store: &Store, store_path: &StorePath) -> NixideResult<()> {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_store_copy_closure(
                 ctx.as_ptr(),
                 src_store.as_ptr(),
                 self.as_ptr(),
-                store_path.inner.as_ptr(),
+                store_path.as_ptr(),
             );
-        }) // semi-colon to return () and not i32
+        })
     }
 }
 
@@ -246,7 +252,3 @@ impl Drop for Store {
         }
     }
 }
-
-// SAFETY: Store can be shared between threads
-unsafe impl Send for Store {}
-unsafe impl Sync for Store {}

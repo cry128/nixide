@@ -1,21 +1,37 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::path::PathBuf;
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
 use crate::stdext::CCharPtrExt;
-use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
+use crate::{EvalState, sys};
 
 pub struct NixPath {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
     value: PathBuf,
+}
+
+impl Clone for NixPath {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+            value: self.value.clone(),
+        }
+    }
 }
 
 impl Drop for NixPath {
@@ -62,7 +78,7 @@ impl NixValue for NixPath {
         sys::ValueType_NIX_TYPE_PATH
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         let value = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_get_path_string(ctx.as_ptr(), inner.as_ptr())
         })
@@ -72,7 +88,7 @@ impl NixValue for NixPath {
 
         Self {
             inner,
-            state,
+            state: state.clone(),
             value,
         }
     }

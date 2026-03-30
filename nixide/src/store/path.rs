@@ -1,14 +1,14 @@
-use std::ffi::{c_void, CString};
+use std::ffi::{CString, c_void};
 use std::path::PathBuf;
 use std::ptr::NonNull;
 
 use super::Store;
-use crate::errors::{new_nixide_error, ErrorContext};
+use crate::NixideResult;
+use crate::errors::{ErrorContext, new_nixide_error};
 use crate::sys;
 use crate::util::panic_issue_call_failed;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::NixideResult;
 
 /// A path in the Nix store.
 ///
@@ -16,6 +16,25 @@ use crate::NixideResult;
 ///
 pub struct StorePath {
     pub(crate) inner: NonNull<sys::StorePath>,
+}
+
+impl Clone for StorePath {
+    fn clone(&self) -> Self {
+        let inner = wrap::nix_ptr_fn!(|_| unsafe { sys::nix_store_path_clone(self.as_ptr()) })
+            .unwrap_or_else(|_| {
+                panic_issue_call_failed!("nix_store_path_clone returned None for valid path")
+            });
+
+        StorePath { inner }
+    }
+}
+
+impl Drop for StorePath {
+    fn drop(&mut self) {
+        unsafe {
+            sys::nix_store_path_free(self.as_ptr());
+        }
+    }
 }
 
 impl AsInnerPtr<sys::StorePath> for StorePath {
@@ -127,26 +146,3 @@ impl StorePath {
         .is_ok()
     }
 }
-
-impl Clone for StorePath {
-    fn clone(&self) -> Self {
-        let inner = wrap::nix_ptr_fn!(|_| unsafe { sys::nix_store_path_clone(self.as_ptr()) })
-            .unwrap_or_else(|_| {
-                panic_issue_call_failed!("nix_store_path_clone returned None for valid path")
-            });
-
-        StorePath { inner }
-    }
-}
-
-impl Drop for StorePath {
-    fn drop(&mut self) {
-        unsafe {
-            sys::nix_store_path_free(self.as_ptr());
-        }
-    }
-}
-
-// SAFETY: StorePath can be shared between threads
-unsafe impl Send for StorePath {}
-unsafe impl Sync for StorePath {}

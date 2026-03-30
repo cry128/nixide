@@ -1,22 +1,26 @@
-use std::ffi::CString;
+use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use super::{FlakeReference, FlakeSettings};
-use crate::errors::new_nixide_error;
+use crate::NixideResult;
 use crate::errors::ErrorContext;
+use crate::stdext::AsCPtr as _;
 use crate::sys;
+use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
-use crate::NixideError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum FlakeLockMode {
     /// Configures [LockedFlake::lock] to make incremental changes to the lock file as needed. Changes are written to file.
+    ///
     WriteAsNeeded,
 
     /// Like [FlakeLockMode::WriteAsNeeded], but does not write to the lock file.
+    ///
     Virtual,
 
     /// Make [LockedFlake::lock] check if the lock file is up to date. If not, an error is returned.
+    ///
     Check,
 }
 
@@ -24,6 +28,20 @@ pub enum FlakeLockMode {
 pub struct FlakeLockFlags {
     pub(crate) inner: NonNull<sys::nix_flake_lock_flags>,
 }
+
+// impl Clone for FlakeLockFlags {
+//     fn clone(&self) -> Self {
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self {
+//             inner: self.inner.clone(),
+//         }
+//     }
+// }
+
 impl Drop for FlakeLockFlags {
     fn drop(&mut self) {
         unsafe {
@@ -31,69 +49,49 @@ impl Drop for FlakeLockFlags {
         }
     }
 }
-impl FlakeLockFlags {
-    // XXX: TODO: what is the default FlakeLockMode?
-    pub fn new(settings: &FlakeSettings) -> Result<Self, NixideError> {
-        let ctx = ErrorContext::new();
-        NonNull::new(unsafe { sys::nix_flake_lock_flags_new(ctx.as_ptr(), settings.as_ptr()) })
-            .ok_or(new_nixide_error!(NullPtr))
-            .map(|inner| FlakeLockFlags { inner })
-    }
 
-    pub(crate) fn as_ptr(&self) -> *mut sys::nix_flake_lock_flags {
+impl AsInnerPtr<sys::nix_flake_lock_flags> for FlakeLockFlags {
+    #[inline]
+    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_lock_flags {
         self.inner.as_ptr()
     }
 
-    pub fn set_lock_mode(&mut self, mode: &FlakeLockMode) -> Result<(), NixideError> {
-        let ctx = ErrorContext::new();
-        match mode {
-            FlakeLockMode::WriteAsNeeded => unsafe {
-                sys::nix_flake_lock_flags_set_mode_write_as_needed(ctx.as_ptr(), self.as_ptr())
-            },
-            FlakeLockMode::Virtual => unsafe {
-                sys::nix_flake_lock_flags_set_mode_virtual(ctx.as_ptr(), self.as_ptr())
-            },
-            FlakeLockMode::Check => unsafe {
-                sys::nix_flake_lock_flags_set_mode_check(ctx.as_ptr(), self.as_ptr())
-            },
-        };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
+    #[inline]
+    unsafe fn as_ref(&self) -> &sys::nix_flake_lock_flags {
+        unsafe { self.inner.as_ref() }
     }
 
-    /// Configures [LockedFlake::lock] to make incremental changes to the lock file as needed. Changes are written to file.
-    // pub fn set_mode_write_as_needed(&mut self) -> Result<(), NixideError> {
-    //     ErrorContext::new().and_then(|ctx| {
-    //         NixideError::from(
-    //             unsafe {
-    //                 sys::nix_flake_lock_flags_set_mode_write_as_needed(ctx.as_ptr(), self.as_ptr())
-    //             },
-    //             "nix_flake_lock_flags_set_mode_write_as_needed",
-    //         )
-    //     })
-    // }
+    #[inline]
+    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_lock_flags {
+        unsafe { self.inner.as_mut() }
+    }
+}
 
-    /// Make [LockedFlake::lock] check if the lock file is up to date. If not, an error is returned.
-    // pub fn set_mode_check(&mut self) -> Result<(), NixideError> {
-    //     ErrorContext::new().and_then(|ctx| {
-    //         NixideError::from(
-    //             unsafe { sys::nix_flake_lock_flags_set_mode_check(ctx.as_ptr(), self.as_ptr()) },
-    //             "nix_flake_lock_flags_set_mode_check",
-    //         )
-    //     })
-    // }
+impl FlakeLockFlags {
+    // XXX: TODO: what is the default FlakeLockMode?
+    pub fn new(settings: &FlakeSettings) -> NixideResult<Self> {
+        let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_flake_lock_flags_new(ctx.as_ptr(), settings.as_ptr())
+        })?;
 
-    /// Like `set_mode_write_as_needed`, but does not write to the lock file.
-    // pub fn set_mode_virtual(&mut self) -> Result<(), NixideError> {
-    //     ErrorContext::new().and_then(|ctx| {
-    //         NixideError::from(
-    //             unsafe { sys::nix_flake_lock_flags_set_mode_virtual(ctx.as_ptr(), self.as_ptr()) },
-    //             "nix_flake_lock_flags_set_mode_virtual",
-    //         )
-    //     })
-    // }
+        Ok(FlakeLockFlags { inner })
+    }
+
+    pub fn set_mode(&mut self, mode: &FlakeLockMode) -> NixideResult<()> {
+        wrap::nix_fn!(|ctx: &ErrorContext| {
+            match mode {
+                FlakeLockMode::WriteAsNeeded => unsafe {
+                    sys::nix_flake_lock_flags_set_mode_write_as_needed(ctx.as_ptr(), self.as_ptr())
+                },
+                FlakeLockMode::Virtual => unsafe {
+                    sys::nix_flake_lock_flags_set_mode_virtual(ctx.as_ptr(), self.as_ptr())
+                },
+                FlakeLockMode::Check => unsafe {
+                    sys::nix_flake_lock_flags_set_mode_check(ctx.as_ptr(), self.as_ptr())
+                },
+            };
+        })
+    }
 
     /// Adds an input override to the lock file that will be produced.
     /// The [LockedFlake::lock] operation will not write to the lock file.
@@ -106,26 +104,17 @@ impl FlakeLockFlags {
     /// # Arguments
     ///
     ///  * `path` - The input name/path to override (must not be empty)
-    ///  * `flake_ref` - The flake reference to use as the override
-    pub fn override_input(
-        &mut self,
-        path: &str,
-        flakeref: &FlakeReference,
-    ) -> Result<(), NixideError> {
-        let input_path = CString::new(path).or_else(|_| Err(new_nixide_error!(StringNulByte)));
+    ///  * `flakeref` - The flake reference to use as the override
+    pub fn override_input(&mut self, path: &str, flakeref: &FlakeReference) -> NixideResult<()> {
+        let input_path = path.as_c_ptr()?;
 
-        let ctx = ErrorContext::new();
-        unsafe {
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_flake_lock_flags_add_input_override(
                 ctx.as_ptr(),
                 self.as_ptr(),
-                input_path.as_ptr(),
+                input_path,
                 flakeref.as_ptr(),
-            )
-        };
-        match ctx.peak() {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
+            );
+        })
     }
 }

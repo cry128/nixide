@@ -2,39 +2,24 @@ use serial_test::serial;
 
 use super::{Store, StorePath};
 use crate::errors::ErrorContext;
+use crate::init::LIBNIX_INIT_STATUS;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr as _;
 
 #[test]
 #[serial]
 fn test_store_opening() {
-    let mut ctx = ErrorContext::new();
-    unsafe {
-        sys::nix_libutil_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libutil_init failed with bad ErrorContext");
-        sys::nix_libstore_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libstore_init failed with bad ErrorContext");
-    };
+    assert!(unsafe { matches!(LIBNIX_INIT_STATUS, Some(Ok(_))) });
 
-    let _store = Store::open(None).expect("Failed to open store");
+    let _store = Store::default().expect("Failed to open store");
 }
 
 #[test]
 #[serial]
 fn test_store_path_parse() {
-    let mut ctx = ErrorContext::new();
-    unsafe {
-        sys::nix_libutil_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libutil_init failed with bad ErrorContext");
-        sys::nix_libstore_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libstore_init failed with bad ErrorContext");
-    };
+    assert!(unsafe { matches!(LIBNIX_INIT_STATUS, Some(Ok(_))) });
 
-    let store = Store::open(None).expect("Failed to open store");
+    let store = Store::default().expect("Failed to open store");
 
     // Try parsing a well-formed store path
     let result = StorePath::fake_path(&store);
@@ -44,17 +29,9 @@ fn test_store_path_parse() {
 #[test]
 #[serial]
 fn test_store_path_clone() {
-    let mut ctx = ErrorContext::new();
-    unsafe {
-        sys::nix_libutil_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libutil_init failed with bad ErrorContext");
-        sys::nix_libstore_init(ctx.as_ptr());
-        ctx.pop()
-            .expect("nix_libstore_init failed with bad ErrorContext");
-    };
+    assert!(unsafe { matches!(LIBNIX_INIT_STATUS, Some(Ok(_))) });
 
-    let store = Store::open(None).expect("Failed to open store");
+    let store = Store::default().expect("Failed to open store");
 
     // Try to get a valid store path by parsing
     let path = StorePath::fake_path(&store).expect("Failed to create `StorePath::fake_path`");

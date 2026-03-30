@@ -1,8 +1,5 @@
-use std::cell::RefCell;
-use std::ffi::CString;
+use std::ffi::{CString, c_void};
 use std::ptr::NonNull;
-use std::rc::Rc;
-use std::sync::Arc;
 
 use crate::errors::new_nixide_error;
 
@@ -18,46 +15,56 @@ use crate::{NixideResult, Store};
 /// This provides the main interface for evaluating Nix expressions
 /// and creating values.
 pub struct EvalState {
-    inner: Rc<RefCell<NonNull<sys::EvalState>>>,
+    inner: NonNull<sys::EvalState>,
 
-    // XXX: TODO: is an `Arc<Store>` necessary or just a `Store`
-    store: Arc<Store>,
+    store: Store,
 }
+
+// impl Clone for EvalState {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+//
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self {
+//             inner,
+//             store: self.store.clone(),
+//         }
+//     }
+// }
 
 impl AsInnerPtr<sys::EvalState> for EvalState {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::EvalState {
-        self.inner.borrow().as_ptr()
+        self.inner.as_ptr()
     }
 
     #[inline]
     unsafe fn as_ref(&self) -> &sys::EvalState {
-        unsafe { self.inner.borrow().as_ref() }
+        unsafe { self.inner.as_ref() }
     }
 
     #[inline]
     unsafe fn as_mut(&mut self) -> &mut sys::EvalState {
-        unsafe { self.inner.borrow_mut().as_mut() }
+        unsafe { self.inner.as_mut() }
     }
 }
 
 impl EvalState {
     /// Construct a new EvalState directly from its attributes
-    pub(super) fn new(inner: NonNull<sys::EvalState>, store: Arc<Store>) -> Self {
+    ///
+    pub(super) fn new(inner: NonNull<sys::EvalState>, store: &Store) -> Self {
         Self {
-            inner: Rc::new(RefCell::new(inner)),
-            store,
+            inner,
+            store: store.clone(),
         }
     }
 
-    #[inline]
-    pub(crate) fn inner_ref(&self) -> Rc<RefCell<NonNull<sys::EvalState>>> {
-        self.inner.clone()
-    }
-
-    #[inline]
-    pub(crate) unsafe fn store_ref(&self) -> &Store {
-        self.store.as_ref()
+    pub fn store_ref(&self) -> &Store {
+        &self.store
     }
 
     /// Evaluate a Nix expression from a string.
@@ -70,7 +77,7 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
-    pub fn eval_from_string(&self, expr: &str, path: &str) -> NixideResult<Value> {
+    pub fn interpret(&self, expr: &str, path: &str) -> NixideResult<Value> {
         let expr_c = CString::new(expr).or(Err(new_nixide_error!(StringNulByte)))?;
         let path_c = CString::new(path).or(Err(new_nixide_error!(StringNulByte)))?;
 
@@ -92,7 +99,7 @@ impl EvalState {
             );
             value
         })
-        .map(|ptr| Value::from((ptr, self.inner_ref())))
+        .map(|ptr| Value::from((ptr, self)))
     }
 }
 

@@ -1,9 +1,9 @@
-use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
-use std::rc::Rc;
 
 use super::{NixValue, Value};
+use crate::EvalState;
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr;
@@ -11,7 +11,23 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixThunk {
     inner: NonNull<sys::nix_value>,
-    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    state: EvalState,
+}
+
+impl Clone for NixThunk {
+    fn clone(&self) -> Self {
+        let inner = self.inner.clone();
+
+        wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+        })
+        .unwrap();
+
+        Self {
+            inner,
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl Drop for NixThunk {
@@ -58,26 +74,21 @@ impl NixValue for NixThunk {
         sys::ValueType_NIX_TYPE_THUNK
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
-        Self { inner, state }
+    fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
+        Self {
+            inner,
+            state: state.clone(),
+        }
     }
 }
 
 impl NixThunk {
-    // fn to_inner(self) -> NonNull<sys::nix_value> {
-    //     self.inner
-    // }
-
     pub fn eval(self) -> Value {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_value_force(
-                ctx.as_ptr(),
-                self.state.borrow().as_ptr(),
-                self.inner.as_ptr(),
-            )
+            sys::nix_value_force(ctx.as_ptr(), self.state.as_ptr(), self.inner.as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
-        Value::from((self.inner, self.state.to_owned()))
+        Value::from((self.inner, &self.state))
     }
 }

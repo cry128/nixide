@@ -7,6 +7,14 @@ use super::util::wrappers::AsInnerPtr as _;
 
 pub(crate) static mut LIBNIX_INIT_STATUS: Option<NixideResult<()>> = None;
 
+/// Initialises the Nix `libutil` library's global state.
+/// This function **should not be run directly!** `#[ctor]` ensures it runs at init-time.
+///
+/// # Note
+///
+/// `sys::nix_libexpr_init` internally runs `sys::nix_libutil_init` and `sys::nix_libstore_init`.
+/// Hence this method isn't registered via `#[ctor]` if the `exprs` feature is enabled.
+///
 /// # Warning
 ///
 /// > Rust's philosophy is that nothing happens before or after main and [ctor](https://github.com/mmastrac/rust-ctor)
@@ -16,7 +24,7 @@ pub(crate) static mut LIBNIX_INIT_STATUS: Option<NixideResult<()>> = None;
 /// >  - Excerpt from the [github:mmastrac/rust-ctor README.md](https://github.com/mmastrac/rust-ctor?tab=readme-ov-file#warnings)
 #[ctor]
 #[cfg(not(feature = "exprs"))]
-fn init_libutil() {
+pub(crate) fn init_libutil() {
     unsafe {
         if !matches!(LIBNIX_INIT_STATUS, Some(Err(_))) {
             LIBNIX_INIT_STATUS = Some(wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -26,6 +34,14 @@ fn init_libutil() {
     }
 }
 
+/// Initialises the Nix `libstore` library's global state.
+/// This function **should not be run directly!** `#[ctor]` ensures it runs at init-time.
+///
+/// # Note
+///
+/// `sys::nix_libexpr_init` internally runs `sys::nix_libutil_init` and `sys::nix_libstore_init`.
+/// Hence this method isn't registered via `#[ctor]` if the `exprs` feature is enabled.
+///
 /// # Warning
 ///
 /// > Rust's philosophy is that nothing happens before or after main and [ctor](https://github.com/mmastrac/rust-ctor)
@@ -35,7 +51,7 @@ fn init_libutil() {
 /// >  - Excerpt from the [github:mmastrac/rust-ctor README.md](https://github.com/mmastrac/rust-ctor?tab=readme-ov-file#warnings)
 #[ctor]
 #[cfg(all(feature = "store", not(feature = "exprs")))]
-fn init_libstore() {
+pub(crate) fn init_libstore() {
     // XXX: TODO: how do I support `sys::nix_libstore_init_no_load_config(context)`?
     unsafe {
         if !matches!(LIBNIX_INIT_STATUS, Some(Err(_))) {
@@ -46,7 +62,12 @@ fn init_libstore() {
     }
 }
 
-/// `sys::nix_libexpr_init` internally runs
+/// Initialises the Nix `libexpr` library's global state.
+/// This function **should not be run directly!** `#[ctor]` ensures it runs at init-time.
+///
+/// # Note
+///
+/// `sys::nix_libexpr_init` internally runs `sys::nix_libutil_init` and `sys::nix_libstore_init`.
 ///
 /// # Warning
 ///
@@ -57,7 +78,7 @@ fn init_libstore() {
 /// >  - Excerpt from the [github:mmastrac/rust-ctor README.md](https://github.com/mmastrac/rust-ctor?tab=readme-ov-file#warnings)
 #[ctor]
 #[cfg(feature = "exprs")]
-fn init_libexpr() {
+pub(crate) fn init_libexpr() {
     unsafe {
         if !matches!(LIBNIX_INIT_STATUS, Some(Err(_))) {
             LIBNIX_INIT_STATUS = Some(wrap::nix_fn!(|ctx: &ErrorContext| unsafe {

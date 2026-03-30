@@ -10,14 +10,14 @@
 //      * These may be rendered differently, so that users can distinguish them.
 //      */
 //     bool isFromExpr = false;
-
+//
 //     /**
 //      * Exit status.
 //      */
 //     unsigned int status = 1;
-
+//
 //     Suggestions suggestions;
-
+//
 //     static std::optional<std::string> programName;
 // };
 
@@ -66,6 +66,19 @@ use crate::util::wrappers::AsInnerPtr;
 pub(crate) struct ErrorContext {
     inner: NonNull<sys::nix_c_context>,
 }
+
+// impl Clone for ErrorContext {
+//     fn clone(&self) -> Self {
+//         let inner = self.inner.clone();
+//
+//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
+//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+//         })
+//         .unwrap();
+//
+//         Self { inner }
+//     }
+// }
 
 impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
     #[inline]
@@ -183,7 +196,6 @@ impl ErrorContext {
     /// nix_err nix_set_err_msg(nix_c_context * context, nix_err err, const char * msg)
     /// {
     ///     if (context == nullptr) {
-    ///         // todo last_err_code
     ///         throw nix::Error("Nix C api error: %s", msg);
     ///     }
     ///     context->last_err_code = err;
@@ -218,11 +230,9 @@ impl ErrorContext {
     /// This function **never fails**.
     ///
     fn get_err(&self) -> Option<sys::nix_err> {
-        let err = unsafe { sys::nix_err_code(self.as_ptr()) };
-
-        match err {
+        match unsafe { sys::nix_err_code(self.as_ptr()) } {
             sys::nix_err_NIX_OK => None,
-            _ => Some(err),
+            err => Some(err),
         }
     }
 
@@ -257,13 +267,17 @@ impl ErrorContext {
     /// and avoid passing in a [sys::nix_c_context] struct.
     ///
     fn get_msg(&self) -> Option<String> {
-        let ctx = ErrorContext::new();
-        unsafe {
-            // NOTE: an Err here only occurs when `self.get_code() == Ok(())`
-            let mut n: c_uint = 0;
+        // NOTE: an Err here only occurs when `self.get_code() == Ok(())`
+        let mut n: c_uint = 0;
+        let result = wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_err_msg(ctx.as_ptr(), self.as_ptr(), &mut n)
                 .to_utf8_string_n(n as usize)
                 .ok()
+        });
+
+        match result {
+            Ok(option) => option,
+            Err(_) => None,
         }
     }
 
@@ -305,19 +319,18 @@ impl ErrorContext {
     /// ```
     ///
     fn get_nix_err_name(&self) -> Option<String> {
-        #[allow(unused_unsafe)] // XXX: TODO: remove this `unused_unsafe`
-        unsafe {
-            // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap::nix_string_callback!(|callback, userdata: *mut __UserData, ctx: &ErrorContext| {
+        // NOTE: an Err here only occurs when "Last error was not a nix error"
+        wrap::nix_string_callback!(
+            |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_err_name(
                     ctx.as_ptr(),
                     self.as_ptr(),
                     Some(callback),
                     userdata as *mut c_void,
                 )
-            })
-            .ok()
-        }
+            }
+        )
+        .ok()
     }
 
     /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
@@ -358,19 +371,16 @@ impl ErrorContext {
     /// ```
     ///
     fn get_nix_err_info_msg(&self) -> Option<String> {
-        #[allow(unused_unsafe)] // XXX: TODO: remove this `unused_unsafe`
-        unsafe {
-            // NOTE: an Err here only occurs when "Last error was not a nix error"
-            wrap::nix_string_callback!(|callback, userdata, ctx: &ErrorContext| {
-                sys::nix_err_info_msg(
-                    ctx.as_ptr(),
-                    self.as_ptr(),
-                    Some(callback),
-                    userdata as *mut c_void,
-                )
-            })
-            .ok()
-        }
+        // NOTE: an Err here only occurs when "Last error was not a nix error"
+        wrap::nix_string_callback!(|callback, userdata, ctx: &ErrorContext| unsafe {
+            sys::nix_err_info_msg(
+                ctx.as_ptr(),
+                self.as_ptr(),
+                Some(callback),
+                userdata as *mut c_void,
+            )
+        })
+        .ok()
     }
 }
 

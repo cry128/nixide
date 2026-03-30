@@ -8,6 +8,7 @@ pub extern crate nixide_sys as sys;
 
 pub(crate) mod errors;
 mod init;
+mod nix_settings;
 mod stdext;
 pub(crate) mod util;
 mod verbosity;
@@ -21,6 +22,7 @@ mod flake;
 mod store;
 
 pub use errors::{NixError, NixideError, NixideResult};
+pub use nix_settings::{get_global_setting, set_global_setting};
 pub use verbosity::{NixVerbosity, set_verbosity};
 pub use version::NixVersion;
 
