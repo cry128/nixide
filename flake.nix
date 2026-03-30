@@ -24,6 +24,7 @@
         allowUnfree = false;
         allowBroken = false;
         overlays = builtins.attrValues self.overlays or {};
+        # config.replaceStdenv = {pkgs}: with pkgs; llvmPackages_21.stdenv;
       };
 
     forAllSystems = f:
@@ -60,12 +61,18 @@
             packages = with pkgs; [
               rustc
               llvmPackages.lld
-              lldb
+              llvmPackages.lldb
+              # lldb
 
               cargo
               cargo-c
               cargo-llvm-cov
               cargo-nextest
+
+              clang # DEBUG
+              clang-tools # DEBUG
+
+              libcxx
 
               rust-analyzer-unwrapped
               (rustfmt.override {asNightly = true;})
