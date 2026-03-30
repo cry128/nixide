@@ -1,5 +1,8 @@
+use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
@@ -10,7 +13,7 @@ use crate::{EvalState, sys};
 
 pub struct NixString {
     inner: NonNull<sys::nix_value>,
-    state: EvalState,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: String,
 }
 
@@ -90,7 +93,7 @@ impl NixValue for NixString {
 
         Self {
             inner,
-            state: state.clone(),
+            state: state.inner_ref().clone(),
             value,
         }
     }

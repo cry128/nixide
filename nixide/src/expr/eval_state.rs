@@ -1,7 +1,8 @@
-use std::ffi::{CString, c_void};
+use std::cell::RefCell;
 use std::ptr::NonNull;
+use std::rc::Rc;
 
-use crate::errors::new_nixide_error;
+use crate::stdext::AsCPtr as _;
 
 use super::Value;
 use crate::errors::ErrorContext;
@@ -15,9 +16,9 @@ use crate::{NixideResult, Store};
 /// This provides the main interface for evaluating Nix expressions
 /// and creating values.
 pub struct EvalState {
-    inner: NonNull<sys::EvalState>,
+    inner: Rc<RefCell<NonNull<sys::EvalState>>>,
 
-    store: Store,
+    store: Rc<RefCell<Store>>,
 }
 
 // impl Clone for EvalState {
@@ -39,31 +40,37 @@ pub struct EvalState {
 impl AsInnerPtr<sys::EvalState> for EvalState {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::EvalState {
-        self.inner.as_ptr()
+        self.inner.borrow().as_ptr()
     }
 
     #[inline]
     unsafe fn as_ref(&self) -> &sys::EvalState {
-        unsafe { self.inner.as_ref() }
+        unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
     unsafe fn as_mut(&mut self) -> &mut sys::EvalState {
-        unsafe { self.inner.as_mut() }
+        unsafe { self.inner.borrow_mut().as_mut() }
     }
 }
 
 impl EvalState {
     /// Construct a new EvalState directly from its attributes
     ///
-    pub(super) fn new(inner: NonNull<sys::EvalState>, store: &Store) -> Self {
+    pub(super) fn from(inner: NonNull<sys::EvalState>, store: Rc<RefCell<Store>>) -> Self {
         Self {
-            inner,
-            store: store.clone(),
+            inner: Rc::new(RefCell::new(inner)),
+            store,
         }
     }
 
-    pub fn store_ref(&self) -> &Store {
+    #[inline]
+    pub fn inner_ref(&self) -> &Rc<RefCell<NonNull<sys::EvalState>>> {
+        &self.inner
+    }
+
+    #[inline]
+    pub fn store_ref(&self) -> &Rc<RefCell<Store>> {
         &self.store
     }
 
@@ -77,9 +84,10 @@ impl EvalState {
     /// # Errors
     ///
     /// Returns an error if evaluation fails.
+    ///
     pub fn interpret(&self, expr: &str, path: &str) -> NixideResult<Value> {
-        let expr_c = CString::new(expr).or(Err(new_nixide_error!(StringNulByte)))?;
-        let path_c = CString::new(path).or(Err(new_nixide_error!(StringNulByte)))?;
+        let expr = expr.as_c_ptr()?;
+        let path = path.as_c_ptr()?;
 
         // Allocate value for result
         // XXX: TODO: create a method for this (``)
@@ -90,13 +98,7 @@ impl EvalState {
 
         // Evaluate expression
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_expr_eval_from_string(
-                ctx.as_ptr(),
-                self.as_ptr(),
-                expr_c.as_ptr(),
-                path_c.as_ptr(),
-                value.as_ptr(),
-            );
+            sys::nix_expr_eval_from_string(ctx.as_ptr(), self.as_ptr(), expr, path, value.as_ptr());
             value
         })
         .map(|ptr| Value::from((ptr, self)))
@@ -110,7 +112,3 @@ impl Drop for EvalState {
         }
     }
 }
-
-// SAFETY: EvalState can be shared between threads
-unsafe impl Send for EvalState {}
-unsafe impl Sync for EvalState {}

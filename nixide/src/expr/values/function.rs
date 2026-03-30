@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::{NixValue, Value};
 use crate::errors::ErrorContext;
@@ -10,7 +12,7 @@ use crate::{EvalState, sys};
 
 pub struct NixFunction {
     inner: NonNull<sys::nix_value>,
-    state: EvalState,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
 impl Clone for NixFunction {
@@ -76,7 +78,7 @@ impl NixValue for NixFunction {
     fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         Self {
             inner,
-            state: state.clone(),
+            state: state.inner_ref().clone(),
         }
     }
 }
@@ -87,14 +89,14 @@ impl NixFunction {
         T: NixValue,
     {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_alloc_value(ctx.as_ptr(), self.state.as_ptr())
+            sys::nix_alloc_value(ctx.as_ptr(), self.state.borrow().as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_value_call(
                 ctx.as_ptr(),
-                self.state.as_ptr(),
+                self.state.borrow().as_ptr(),
                 self.as_ptr(),
                 arg.as_ptr(),
                 inner.as_ptr(),
@@ -110,14 +112,14 @@ impl NixFunction {
         T: NixValue,
     {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_alloc_value(ctx.as_ptr(), self.state.as_ptr())
+            sys::nix_alloc_value(ctx.as_ptr(), self.state.borrow().as_ptr())
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_value_call_multi(
                 ctx.as_ptr(),
-                self.state.as_ptr(),
+                self.state.borrow().as_ptr(),
                 self.as_ptr(),
                 args.len(),
                 args.into_c_array(),

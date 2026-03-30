@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::NixValue;
 use crate::EvalState;
@@ -10,7 +12,7 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixInt {
     inner: NonNull<sys::nix_value>,
-    state: EvalState,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: i64,
 }
 
@@ -83,7 +85,7 @@ impl NixValue for NixInt {
 
         Self {
             inner,
-            state: state.clone(),
+            state: state.inner_ref().clone(),
             value,
         }
     }

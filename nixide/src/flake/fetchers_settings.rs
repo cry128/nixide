@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use crate::NixideResult;

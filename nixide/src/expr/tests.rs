@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use serial_test::serial;
 
 use super::{EvalStateBuilder, Value};
@@ -8,19 +6,18 @@ use crate::Store;
 #[test]
 #[serial]
 fn test_eval_state_builder() {
-    let store = Rc::new(Store::default().expect("Failed to open store"));
-    let _state = EvalStateBuilder::new(&store)
+    let store = Store::default().expect("Failed to open store");
+    let _state = EvalStateBuilder::new(store.clone())
         .expect("Failed to create builder")
         .build()
         .expect("Failed to build state");
-    // State should be dropped automatically
 }
 
 #[test]
 #[serial]
 fn test_simple_evaluation() {
-    let store = Rc::new(Store::default().expect("Failed to open store"));
-    let state = EvalStateBuilder::new(&store)
+    let store = Store::default().expect("Failed to open store");
+    let state = EvalStateBuilder::new(store.clone())
         .expect("Failed to create builder")
         .build()
         .expect("Failed to build state");
@@ -41,7 +38,7 @@ fn test_simple_evaluation() {
 #[serial]
 fn test_value_types() {
     let store = Store::default().expect("Failed to open store");
-    let state = EvalStateBuilder::new(&store)
+    let state = EvalStateBuilder::new(store.clone())
         .expect("Failed to create builder")
         .build()
         .expect("Failed to build state");
@@ -84,7 +81,7 @@ fn test_value_types() {
 #[serial]
 fn test_value_formatting() {
     let store = Store::default().expect("Failed to open store");
-    let state = EvalStateBuilder::new(&store)
+    let state = EvalStateBuilder::new(store.clone())
         .expect("Failed to create builder")
         .build()
         .expect("Failed to build state");

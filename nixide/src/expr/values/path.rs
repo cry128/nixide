@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::path::PathBuf;
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::NixValue;
 use crate::errors::ErrorContext;
@@ -12,7 +14,7 @@ use crate::{EvalState, sys};
 
 pub struct NixPath {
     inner: NonNull<sys::nix_value>,
-    state: EvalState,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
     value: PathBuf,
 }
 
@@ -87,7 +89,7 @@ impl NixValue for NixPath {
 
         Self {
             inner,
-            state: state.clone(),
+            state: state.inner_ref().clone(),
             value,
         }
     }

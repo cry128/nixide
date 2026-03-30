@@ -7,9 +7,11 @@ mod tests;
 mod path;
 pub use path::*;
 
+use std::cell::RefCell;
 use std::ffi::{c_char, c_void};
 use std::path::PathBuf;
 use std::ptr::{NonNull, null, null_mut};
+use std::rc::Rc;
 
 use crate::NixideResult;
 use crate::errors::ErrorContext;
@@ -68,24 +70,24 @@ impl Store {
     ///
     /// Returns an error if the store cannot be opened.
     ///
-    pub fn open(uri: &str) -> NixideResult<Self> {
+    pub fn open(uri: &str) -> NixideResult<Rc<RefCell<Self>>> {
         Self::open_ptr(uri.as_c_ptr()?)
     }
 
     /// Opens a connection to the default Nix store.
     ///
-    pub fn default() -> NixideResult<Self> {
+    pub fn default() -> NixideResult<Rc<RefCell<Self>>> {
         Self::open_ptr(null())
     }
 
     #[inline]
-    fn open_ptr(uri_ptr: *const c_char) -> NixideResult<Self> {
+    fn open_ptr(uri_ptr: *const c_char) -> NixideResult<Rc<RefCell<Self>>> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             // XXX: TODO: allow args to be parsed instead of just `null_mut`
             sys::nix_store_open(ctx.as_ptr(), uri_ptr, null_mut())
         })?;
 
-        Ok(Store { inner })
+        Ok(Rc::new(RefCell::new(Store { inner })))
     }
 
     /// Realize a store path.

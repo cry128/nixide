@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use super::{NixValue, Value};
 use crate::EvalState;
@@ -10,7 +12,7 @@ use crate::util::{panic_issue_call_failed, wrap};
 
 pub struct NixThunk {
     inner: NonNull<sys::nix_value>,
-    state: EvalState,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
 impl Clone for NixThunk {
@@ -76,7 +78,7 @@ impl NixValue for NixThunk {
     fn from(inner: NonNull<sys::nix_value>, state: &EvalState) -> Self {
         Self {
             inner,
-            state: state.clone(),
+            state: state.inner_ref().clone(),
         }
     }
 }
@@ -84,7 +86,11 @@ impl NixValue for NixThunk {
 impl NixThunk {
     pub fn eval(self) -> Value {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_value_force(ctx.as_ptr(), self.state.as_ptr(), self.inner.as_ptr())
+            sys::nix_value_force(
+                ctx.as_ptr(),
+                self.state.borrow().as_ptr(),
+                self.inner.as_ptr(),
+            )
         })
         .unwrap_or_else(|err| panic_issue_call_failed!("{}", err));
 

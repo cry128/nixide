@@ -1,5 +1,7 @@
-use std::ffi::{CString, c_char, c_void};
+use std::cell::RefCell;
+use std::ffi::{CString, c_char};
 use std::ptr::{self, NonNull};
+use std::rc::Rc;
 
 use super::EvalState;
 #[cfg(feature = "flakes")]
@@ -16,8 +18,8 @@ use crate::util::{panic_issue_call_failed, wrap};
 /// the evaluation state.
 ///
 pub struct EvalStateBuilder {
-    inner: NonNull<sys::nix_eval_state_builder>,
-    store: Store,
+    inner: Rc<RefCell<NonNull<sys::nix_eval_state_builder>>>,
+    store: Rc<RefCell<Store>>,
 }
 
 // impl Clone for EvalStateBuilder {
@@ -39,17 +41,17 @@ pub struct EvalStateBuilder {
 impl AsInnerPtr<sys::nix_eval_state_builder> for EvalStateBuilder {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::nix_eval_state_builder {
-        self.inner.as_ptr()
+        self.inner.borrow().as_ptr()
     }
 
     #[inline]
     unsafe fn as_ref(&self) -> &sys::nix_eval_state_builder {
-        unsafe { self.inner.as_ref() }
+        unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
     unsafe fn as_mut(&mut self) -> &mut sys::nix_eval_state_builder {
-        unsafe { self.inner.as_mut() }
+        unsafe { self.inner.borrow_mut().as_mut() }
     }
 }
 
@@ -64,14 +66,14 @@ impl EvalStateBuilder {
     ///
     /// Returns an error if the builder cannot be created.
     ///
-    pub fn new(store: &Store) -> NixideResult<Self> {
+    pub fn new(store: Rc<RefCell<Store>>) -> NixideResult<Self> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_eval_state_builder_new(ctx.as_ptr(), store.as_ptr())
+            sys::nix_eval_state_builder_new(ctx.as_ptr(), store.borrow().as_ptr())
         })?;
 
         Ok(EvalStateBuilder {
-            inner,
-            store: store.clone(),
+            inner: Rc::new(RefCell::new(inner)),
+            store,
         })
     }
 
@@ -87,7 +89,7 @@ impl EvalStateBuilder {
             sys::nix_eval_state_build(ctx.as_ptr(), self.as_ptr())
         })?;
 
-        Ok(EvalState::new(inner, &self.store))
+        Ok(EvalState::from(inner, self.store.clone()))
     }
 
     // XXX: TODO: use `flakes()` instead
