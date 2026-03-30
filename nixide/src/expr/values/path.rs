@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::path::PathBuf;
 use std::ptr::NonNull;
@@ -22,7 +21,7 @@ impl Clone for NixPath {
         let inner = self.inner.clone();
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-            sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
+            sys::nix_value_incref(ctx.as_ptr(), self.as_ptr());
         })
         .unwrap();
 
