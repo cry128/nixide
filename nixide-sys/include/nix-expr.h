@@ -3,6 +3,7 @@
 
 // Nix C API for the Nix expressions evaluator.
 #include <nix_api_expr.h>
+// #include <nix_api_expr_internal.h>
 
 // Nix C API for value manipulation.
 //

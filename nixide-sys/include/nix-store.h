@@ -4,5 +4,6 @@
 // Nix C API for store operations.
 //
 #include <nix_api_store.h>
+// #include <nix_api_store_internal.h>
 
 #endif

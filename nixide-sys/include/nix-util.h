@@ -8,5 +8,6 @@
 // the Nix C APIs for error handling.
 //
 #include <nix_api_util.h>
+// #include <nix_api_util_internal.h>
 
 #endif
