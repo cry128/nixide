@@ -30,6 +30,7 @@ nix-main-c = []
 [build-dependencies]
 bindgen              = { default-features = false, features = [ "logging", "runtime" ], version = "0.72.1" }
 doxygen-bindgen      = "0.1.3"
+itertools = "0.14.0"
 pkg-config.workspace = true
 cc.workspace         = true
 

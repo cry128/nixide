@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::{env, fs};
 
 use bindgen::callbacks::ParseCallbacks;
+use itertools::Itertools;
 
 #[derive(Debug)]
 struct DoxygenCallbacks;
@@ -18,6 +19,7 @@ impl ParseCallbacks for DoxygenCallbacks {
     }
 }
 
+// WARNING: NOTE: the random panic occurs when you're missing imports!!
 const LIBS: &[&'static str] = &[
     #[cfg(feature = "nix-util-c")]
     "nix-util-c",
@@ -37,26 +39,32 @@ fn main() {
     // Invalidate the built crate if the binding headers change
     // println!("cargo::rerun-if-changed=include");
 
-    let lib_args: Vec<String> = LIBS
-        .iter()
-        .map(|&name| {
-            let lib = pkg_config::probe_library(name)
-                .expect(&format!("Unable to find .pc file for {}", name));
+    let lib_args: Vec<String> = vec![ /* EXTRA ARGS */ ]
+        .into_iter()
+        .map(|s: &str| s.to_owned())
+        .chain(
+            LIBS.iter()
+                .map(|&name| {
+                    let lib = pkg_config::probe_library(name)
+                        .expect(&format!("Unable to find .pc file for {}", name));
 
-            for p in lib.link_files {
-                println!("cargo::rustc-link-lib={}", p.display());
-            }
+                    for p in lib.link_files {
+                        println!("cargo::rustc-link-lib={}", p.display());
+                    }
 
-            lib.include_paths
-                .into_iter()
-                .map(|p| format!("-I{}", p.display()))
-        })
-        .flatten()
-        .chain(vec!["-Wall".to_owned(), "-xc++".to_owned()])
+                    lib.include_paths
+                        .into_iter()
+                        .map(|p| format!("-I{}", p.display()))
+                })
+                .flatten(),
+        )
+        .unique()
         .collect();
 
+    dbg!(&lib_args);
+
     let mut builder = bindgen::Builder::default()
-        // .clang_arg("") // libnix uses c++23
+        // .enable_cxx_namespaces()
         .clang_args(lib_args)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         // Add `doxygen_bindgen` callbacks
