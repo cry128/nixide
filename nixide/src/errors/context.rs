@@ -57,42 +57,29 @@ use crate::util::wrappers::AsInnerPtr;
 /// };
 /// ```
 ///
-/// The [sys::nix_c_context] struct is laid out so that it can also be
-/// cast to a [sys::nix_err] to inspect directly:
+/// The [NixCContext] struct is laid out so that it can also be
+/// cast to a [sys::NixErr] to inspect directly:
 /// ```c
 /// assert(*(nix_err*)ctx == NIX_OK);
 /// ```
 ///
 pub(crate) struct ErrorContext {
-    inner: NonNull<sys::nix_c_context>,
+    inner: NonNull<sys::NixCContext>,
 }
 
-// impl Clone for ErrorContext {
-//     fn clone(&self) -> Self {
-//         let inner = self.inner.clone();
-//
-//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
-//         })
-//         .unwrap();
-//
-//         Self { inner }
-//     }
-// }
-
-impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
+impl AsInnerPtr<sys::NixCContext> for ErrorContext {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_c_context {
+    unsafe fn as_ptr(&self) -> *mut sys::NixCContext {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_c_context {
+    unsafe fn as_ref(&self) -> &sys::NixCContext {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_c_context {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixCContext {
         unsafe { self.inner.as_mut() }
     }
 }
@@ -100,11 +87,11 @@ impl AsInnerPtr<sys::nix_c_context> for ErrorContext {
 impl Into<NixideResult<()>> for &ErrorContext {
     /// # Panics
     ///
-    /// This function will panic in the event that `context.get_err() == Some(err) && err == sys::nix_err_NIX_OK`
-    /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::nix_err_NIX_OK`.
+    /// This function will panic in the event that `context.get_err() == Some(err) && err == sys::NixErr::NIX_OK`
+    /// since `nixide::ErrorContext::get_err` is expected to return `None` to indicate `sys::NixErr::NIX_OK`.
     ///
-    /// This function will panic in the event that `value != sys::nix_err_NIX_OK`
-    /// but that `context.get_code() == sys::nix_err_NIX_OK`
+    /// This function will panic in the event that `value != sys::NixErr::NIX_OK`
+    /// but that `context.get_code() == sys::NixErr::NIX_OK`
     ///
     fn into(self) -> NixideResult<()> {
         let inner = match self.get_err() {
@@ -117,11 +104,11 @@ impl Into<NixideResult<()>> for &ErrorContext {
         };
 
         let err = match inner {
-            sys::nix_err_NIX_OK => unreachable!(),
+            sys::NixErr::Ok => unreachable!(),
 
-            sys::nix_err_NIX_ERR_OVERFLOW => NixError::Overflow,
-            sys::nix_err_NIX_ERR_KEY => NixError::KeyNotFound(None),
-            sys::nix_err_NIX_ERR_NIX_ERROR => NixError::ExprEval {
+            sys::NixErr::Overflow => NixError::Overflow,
+            sys::NixErr::Key => NixError::KeyNotFound(None),
+            sys::NixErr::NixError => NixError::ExprEval {
                 name: self
                     .get_nix_err_name()
                     .unwrap_or_else(|| panic_issue_call_failed!()),
@@ -131,7 +118,7 @@ impl Into<NixideResult<()>> for &ErrorContext {
                     .unwrap_or_else(|| panic_issue_call_failed!()),
             },
 
-            sys::nix_err_NIX_ERR_UNKNOWN => NixError::Unknown,
+            sys::NixErr::Unknown => NixError::Unknown,
             err => NixError::Undocumented(err),
         };
 
@@ -145,13 +132,13 @@ impl ErrorContext {
     /// # Errors
     ///
     /// Returns an error if no memory can be allocated for
-    /// the underlying [sys::nix_c_context] struct.
+    /// the underlying [NixCContext] struct.
     ///
     pub fn new() -> Self {
         match NonNull::new(unsafe { sys::nix_c_context_create() }) {
             Some(inner) => ErrorContext { inner },
             None => panic!(
-                "[nixide] CRITICAL FAILURE: Out-Of-Memory condition reached - `sys::nix_c_context_create` allocation failed!"
+                "[nixide] CRITICAL FAILURE: Out-Of-Memory condition reached - `NixCContext_create` allocation failed!"
             ),
         }
     }
@@ -216,12 +203,12 @@ impl ErrorContext {
         Ok(())
     }
 
-    /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
+    /// Returns [None] if [self.code] is [sys::NixErr::NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
     ///
     /// ```cpp
-    /// nix_err nix_err_code(const nix_c_context * read_context)
+    /// nix_err nix_err::code(const nix_c_context * read_context)
     /// {
     ///     return read_context->last_err_code;
     /// }
@@ -229,19 +216,19 @@ impl ErrorContext {
     ///
     /// This function **never fails**.
     ///
-    fn get_err(&self) -> Option<sys::nix_err> {
+    fn get_err(&self) -> Option<sys::NixErr> {
         match unsafe { sys::nix_err_code(self.as_ptr()) } {
-            sys::nix_err_NIX_OK => None,
+            sys::NixErr::Ok => None,
             err => Some(err),
         }
     }
 
-    /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
+    /// Returns [None] if [self.code] is [sys::NixErr::NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
     ///
     /// ```cpp
-    /// const char * nix_err_msg(nix_c_context * context, const nix_c_context * read_context, unsigned int * n)
+    /// const char * nix_err::msg(nix_c_context * context, const nix_c_context * read_context, unsigned int * n)
     /// {
     ///     if (context)
     ///         context->last_err_code = NIX_OK;
@@ -250,21 +237,21 @@ impl ErrorContext {
     ///             *n = read_context->last_err->size();
     ///         return read_context->last_err->c_str();
     ///     }
-    ///     nix_set_err_msg(context, NIX_ERR_UNKNOWN, "No error message");
+    ///     nix_set_err_msg(context, NIX_ERR::UNKNOWN, "No error message");
     ///     return nullptr;
     /// }
     /// ```
     ///
     /// # Note
     ///
-    /// On failure [sys::nix_err_name] does the following if the error
-    /// has the error code [sys::nix_err_NIX_OK]:
+    /// On failure [sys::NixErr::name] does the following if the error
+    /// has the error code [sys::NixErr::NIX_OK]:
     /// ```cpp
-    /// nix_set_err_msg(context, NIX_ERR_UNKNOWN, "No error message");
+    /// nix_set_err_msg(context, NIX_ERR::UNKNOWN, "No error message");
     /// return nullptr;
     /// ```
     /// Hence we can just test whether the returned pointer is a `NULL` pointer,
-    /// and avoid passing in a [sys::nix_c_context] struct.
+    /// and avoid passing in a [NixCContext] struct.
     ///
     fn get_msg(&self) -> Option<String> {
         // NOTE: an Err here only occurs when `self.get_code() == Ok(())`
@@ -281,13 +268,13 @@ impl ErrorContext {
         }
     }
 
-    /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
+    /// Returns [None] if [self.code] is [sys::NixErr::NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
     ///
     /// ```cpp
-    /// // NOTE(nixide): the implementation of `nix_err_info_msg` is identical to `nix_err_name`
-    /// nix_err nix_err_info_msg(
+    /// // NOTE(nixide): the implementation of `nix_err::info_msg` is identical to `nix_err::name`
+    /// nix_err nix_err::info_msg(
     ///     nix_c_context * context,
     ///     const nix_c_context * read_context,
     ///     nix_get_string_callback callback,
@@ -295,16 +282,16 @@ impl ErrorContext {
     /// {
     ///     if (context)
     ///         context->last_err_code = NIX_OK;
-    ///     if (read_context->last_err_code != NIX_ERR_NIX_ERROR) {
+    ///     if (read_context->last_err_code != NIX_ERR::NIX_ERROR) {
     ///         // NOTE(nixide): `nix_set_err_msg` throws a `nix::Error` exception if `context == nullptr`
-    ///         return nix_set_err_msg(context, NIX_ERR_UNKNOWN, "Last error was not a nix error");
+    ///         return nix_set_err_msg(context, NIX_ERR::UNKNOWN, "Last error was not a nix error");
     ///     }
     ///     // NOTE(nixide): `call_nix_get_string_callback` always returns `NIX_OK`
     ///     return call_nix_get_string_callback(read_context->info->msg.str(), callback, user_data);
     /// }
     /// ```
     ///
-    /// `nix_err_info_msg` accepts two `nix_c_context*`:
+    /// `nix_err::info_msg` accepts two `nix_c_context*`:
     /// * `nix_c_context* context` - errors from the function call are logged here
     /// * `const nix_c_context* read_context` - the context to read `info_msg` from
     ///
@@ -333,13 +320,13 @@ impl ErrorContext {
         .ok()
     }
 
-    /// Returns [None] if [self.code] is [sys::nix_err_NIX_OK], and [Some] otherwise.
+    /// Returns [None] if [self.code] is [sys::NixErr::NIX_OK], and [Some] otherwise.
     ///
     /// # Nix C++ API Internals
     ///
     /// ```cpp
-    /// // NOTE(nixide): the implementation of `nix_err_info_msg` is identical to `nix_err_name`
-    /// nix_err nix_err_info_msg(
+    /// // NOTE(nixide): the implementation of `nix_err::info_msg` is identical to `nix_err::name`
+    /// nix_err nix_err::info_msg(
     ///     nix_c_context * context,
     ///     const nix_c_context * read_context,
     ///     nix_get_string_callback callback,
@@ -347,16 +334,16 @@ impl ErrorContext {
     /// {
     ///     if (context)
     ///         context->last_err_code = NIX_OK;
-    ///     if (read_context->last_err_code != NIX_ERR_NIX_ERROR) {
+    ///     if (read_context->last_err_code != NIX_ERR::NIX_ERROR) {
     ///         // NOTE(nixide): `nix_set_err_msg` throws a `nix::Error` exception if `context == nullptr`
-    ///         return nix_set_err_msg(context, NIX_ERR_UNKNOWN, "Last error was not a nix error");
+    ///         return nix_set_err_msg(context, NIX_ERR::UNKNOWN, "Last error was not a nix error");
     ///     }
     ///     // NOTE(nixide): `call_nix_get_string_callback` always returns `NIX_OK`
     ///     return call_nix_get_string_callback(read_context->info->msg.str(), callback, user_data);
     /// }
     /// ```
     ///
-    /// `nix_err_info_msg` accepts two `nix_c_context*`:
+    /// `nix_err::info_msg` accepts two `nix_c_context*`:
     /// * `nix_c_context* context` - errors from the function call are logged here
     /// * `const nix_c_context* read_context` - the context to read `info_msg` from
     ///

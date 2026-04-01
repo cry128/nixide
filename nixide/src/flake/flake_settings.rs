@@ -8,7 +8,7 @@ use crate::util::wrappers::AsInnerPtr;
 
 /// Store settings for the flakes feature.
 pub struct FlakeSettings {
-    inner: NonNull<sys::nix_flake_settings>,
+    inner: NonNull<sys::NixFlakeSettings>,
 }
 
 impl Drop for FlakeSettings {
@@ -19,19 +19,19 @@ impl Drop for FlakeSettings {
     }
 }
 
-impl AsInnerPtr<sys::nix_flake_settings> for FlakeSettings {
+impl AsInnerPtr<sys::NixFlakeSettings> for FlakeSettings {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_settings {
+    unsafe fn as_ptr(&self) -> *mut sys::NixFlakeSettings {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_flake_settings {
+    unsafe fn as_ref(&self) -> &sys::NixFlakeSettings {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_settings {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixFlakeSettings {
         unsafe { self.inner.as_mut() }
     }
 }

@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use super::{FlakeReference, FlakeSettings};
@@ -26,7 +25,7 @@ pub enum FlakeLockMode {
 
 /// Parameters that affect the locking of a flake.
 pub struct FlakeLockFlags {
-    pub(crate) inner: NonNull<sys::nix_flake_lock_flags>,
+    pub(crate) inner: NonNull<sys::NixFlakeLockFlags>,
 }
 
 // impl Clone for FlakeLockFlags {
@@ -50,19 +49,19 @@ impl Drop for FlakeLockFlags {
     }
 }
 
-impl AsInnerPtr<sys::nix_flake_lock_flags> for FlakeLockFlags {
+impl AsInnerPtr<sys::NixFlakeLockFlags> for FlakeLockFlags {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_lock_flags {
+    unsafe fn as_ptr(&self) -> *mut sys::NixFlakeLockFlags {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_flake_lock_flags {
+    unsafe fn as_ref(&self) -> &sys::NixFlakeLockFlags {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_lock_flags {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixFlakeLockFlags {
         unsafe { self.inner.as_mut() }
     }
 }

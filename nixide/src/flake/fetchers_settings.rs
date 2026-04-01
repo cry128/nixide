@@ -7,7 +7,7 @@ use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 
 pub struct FetchersSettings {
-    inner: NonNull<sys::nix_fetchers_settings>,
+    inner: NonNull<sys::NixFetchersSettings>,
 }
 
 impl FetchersSettings {
@@ -41,19 +41,19 @@ impl Drop for FetchersSettings {
     }
 }
 
-impl AsInnerPtr<sys::nix_fetchers_settings> for FetchersSettings {
+impl AsInnerPtr<sys::NixFetchersSettings> for FetchersSettings {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_fetchers_settings {
+    unsafe fn as_ptr(&self) -> *mut sys::NixFetchersSettings {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_fetchers_settings {
+    unsafe fn as_ref(&self) -> &sys::NixFetchersSettings {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_fetchers_settings {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixFetchersSettings {
         unsafe { self.inner.as_mut() }
     }
 }

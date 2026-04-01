@@ -18,23 +18,23 @@ use crate::util::{panic_issue_call_failed, wrap};
 /// the evaluation state.
 ///
 pub struct EvalStateBuilder {
-    inner: Rc<RefCell<NonNull<sys::nix_eval_state_builder>>>,
+    inner: Rc<RefCell<NonNull<sys::NixEvalStateBuilder>>>,
     store: Rc<RefCell<Store>>,
 }
 
-impl AsInnerPtr<sys::nix_eval_state_builder> for EvalStateBuilder {
+impl AsInnerPtr<sys::NixEvalStateBuilder> for EvalStateBuilder {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_eval_state_builder {
+    unsafe fn as_ptr(&self) -> *mut sys::NixEvalStateBuilder {
         self.inner.borrow().as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_eval_state_builder {
+    unsafe fn as_ref(&self) -> &sys::NixEvalStateBuilder {
         unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_eval_state_builder {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixEvalStateBuilder {
         unsafe { self.inner.borrow_mut().as_mut() }
     }
 }

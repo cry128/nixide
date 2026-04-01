@@ -3,8 +3,9 @@
 
 use std::ffi::CString;
 
-use nixide_sys::*;
 use serial_test::serial;
+
+use nixide_sys::*;
 
 #[test]
 #[serial]
@@ -14,13 +15,13 @@ fn value_reference_counting() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -29,7 +30,7 @@ fn value_reference_counting() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -40,11 +41,11 @@ fn value_reference_counting() {
 
         // Initialize with an integer
         let init_err = nix_init_int(ctx, value, 42);
-        assert_eq!(init_err, nix_err_NIX_OK);
+        assert_eq!(init_err, NixErr::Ok);
 
         // Test value-specific reference counting
         let incref_err = nix_value_incref(ctx, value);
-        assert_eq!(incref_err, nix_err_NIX_OK);
+        assert_eq!(incref_err, NixErr::Ok);
 
         // Value should still be valid after increment
         let int_val = nix_get_int(ctx, value);
@@ -52,7 +53,7 @@ fn value_reference_counting() {
 
         // Test decrement
         let decref_err = nix_value_decref(ctx, value);
-        assert_eq!(decref_err, nix_err_NIX_OK);
+        assert_eq!(decref_err, NixErr::Ok);
 
         // Value should still be valid (original reference still exists)
         let int_val2 = nix_get_int(ctx, value);
@@ -60,7 +61,7 @@ fn value_reference_counting() {
 
         // Final decrement (should not crash)
         let final_decref_err = nix_value_decref(ctx, value);
-        assert_eq!(final_decref_err, nix_err_NIX_OK);
+        assert_eq!(final_decref_err, NixErr::Ok);
 
         // Clean up
         nix_state_free(state);
@@ -78,13 +79,13 @@ fn general_gc_reference_counting() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -93,7 +94,7 @@ fn general_gc_reference_counting() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -107,19 +108,19 @@ fn general_gc_reference_counting() {
             value,
             CString::new("test string for GC").unwrap().as_ptr(),
         );
-        assert_eq!(init_err, nix_err_NIX_OK);
+        assert_eq!(init_err, NixErr::Ok);
 
         // Test general GC reference counting
         let gc_incref_err = nix_gc_incref(ctx, value as *const ::std::os::raw::c_void);
-        assert_eq!(gc_incref_err, nix_err_NIX_OK);
+        assert_eq!(gc_incref_err, NixErr::Ok);
 
         // Value should still be accessible
         let value_type = nix_get_type(ctx, value);
-        assert_eq!(value_type, ValueType_NIX_TYPE_STRING);
+        assert_eq!(value_type, ValueType::String);
 
         // Test GC decrement
         let gc_decref_err = nix_gc_decref(ctx, value as *const ::std::os::raw::c_void);
-        assert_eq!(gc_decref_err, nix_err_NIX_OK);
+        assert_eq!(gc_decref_err, NixErr::Ok);
 
         // Final cleanup
         nix_value_decref(ctx, value);
@@ -138,13 +139,13 @@ fn manual_garbage_collection() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -153,7 +154,7 @@ fn manual_garbage_collection() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -164,7 +165,7 @@ fn manual_garbage_collection() {
             let value = nix_alloc_value(ctx, state);
             if !value.is_null() {
                 let init_err = nix_init_int(ctx, value, i);
-                if init_err == nix_err_NIX_OK {
+                if init_err == NixErr::Ok {
                     values.push(value);
                 }
             }
@@ -196,13 +197,13 @@ fn value_copying_and_memory_management() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -211,7 +212,7 @@ fn value_copying_and_memory_management() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -222,20 +223,20 @@ fn value_copying_and_memory_management() {
 
         let test_string = CString::new("test string for copying").unwrap();
         let init_err = nix_init_string(ctx, original, test_string.as_ptr());
-        assert_eq!(init_err, nix_err_NIX_OK);
+        assert_eq!(init_err, NixErr::Ok);
 
         // Create copy
         let copy = nix_alloc_value(ctx, state);
         assert!(!copy.is_null());
 
         let copy_err = nix_copy_value(ctx, copy, original);
-        assert_eq!(copy_err, nix_err_NIX_OK);
+        assert_eq!(copy_err, NixErr::Ok);
 
         // Verify copy has same type and can be accessed
         let original_type = nix_get_type(ctx, original);
         let copy_type = nix_get_type(ctx, copy);
         assert_eq!(original_type, copy_type);
-        assert_eq!(copy_type, ValueType_NIX_TYPE_STRING);
+        assert_eq!(copy_type, ValueType::String);
 
         // Test string contents using callback
         unsafe extern "C" fn string_callback(
@@ -268,20 +269,22 @@ fn value_copying_and_memory_management() {
 
         // Both should have the same string content
         assert_eq!(original_string, copy_string);
-        assert!(original_string
-            .as_deref()
-            .unwrap_or("")
-            .contains("test string"));
+        assert!(
+            original_string
+                .as_deref()
+                .unwrap_or("")
+                .contains("test string")
+        );
 
         // Test reference counting on both values
         let incref_orig = nix_value_incref(ctx, original);
         let incref_copy = nix_value_incref(ctx, copy);
-        assert_eq!(incref_orig, nix_err_NIX_OK);
-        assert_eq!(incref_copy, nix_err_NIX_OK);
+        assert_eq!(incref_orig, NixErr::Ok);
+        assert_eq!(incref_copy, NixErr::Ok);
 
         // Values should still be accessible after increment
-        assert_eq!(nix_get_type(ctx, original), ValueType_NIX_TYPE_STRING);
-        assert_eq!(nix_get_type(ctx, copy), ValueType_NIX_TYPE_STRING);
+        assert_eq!(nix_get_type(ctx, original), ValueType::String);
+        assert_eq!(nix_get_type(ctx, copy), ValueType::String);
 
         // Clean up with decrements
         nix_value_decref(ctx, original);
@@ -304,13 +307,13 @@ fn complex_value_memory_management() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -319,7 +322,7 @@ fn complex_value_memory_management() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -343,7 +346,7 @@ fn complex_value_memory_management() {
         let _ = nix_init_string(ctx, val1, name_str.as_ptr());
 
         let insert_err1 = nix_bindings_builder_insert(ctx, bindings_builder1, key1.as_ptr(), val1);
-        assert_eq!(insert_err1, nix_err_NIX_OK);
+        assert_eq!(insert_err1, NixErr::Ok);
 
         let key2 = CString::new("value").unwrap();
         let val2 = nix_alloc_value(ctx, state);
@@ -351,14 +354,14 @@ fn complex_value_memory_management() {
         let _ = nix_init_int(ctx, val2, 42);
 
         let insert_err2 = nix_bindings_builder_insert(ctx, bindings_builder1, key2.as_ptr(), val2);
-        assert_eq!(insert_err2, nix_err_NIX_OK);
+        assert_eq!(insert_err2, NixErr::Ok);
 
         let make_attrs_err1 = nix_make_attrs(ctx, attrs1, bindings_builder1);
-        assert_eq!(make_attrs_err1, nix_err_NIX_OK);
+        assert_eq!(make_attrs_err1, NixErr::Ok);
 
         // Insert first attrs into list
         let list_insert_err1 = nix_list_builder_insert(ctx, list_builder, 0, attrs1);
-        assert_eq!(list_insert_err1, nix_err_NIX_OK);
+        assert_eq!(list_insert_err1, NixErr::Ok);
 
         // Create second element
         let attrs2 = nix_alloc_value(ctx, state);
@@ -374,23 +377,23 @@ fn complex_value_memory_management() {
         let _ = nix_init_string(ctx, val3, data_str.as_ptr());
 
         let insert_err3 = nix_bindings_builder_insert(ctx, bindings_builder2, key3.as_ptr(), val3);
-        assert_eq!(insert_err3, nix_err_NIX_OK);
+        assert_eq!(insert_err3, NixErr::Ok);
 
         let make_attrs_err2 = nix_make_attrs(ctx, attrs2, bindings_builder2);
-        assert_eq!(make_attrs_err2, nix_err_NIX_OK);
+        assert_eq!(make_attrs_err2, NixErr::Ok);
 
         let list_insert_err2 = nix_list_builder_insert(ctx, list_builder, 1, attrs2);
-        assert_eq!(list_insert_err2, nix_err_NIX_OK);
+        assert_eq!(list_insert_err2, NixErr::Ok);
 
         // Create final list
         let final_list = nix_alloc_value(ctx, state);
         assert!(!final_list.is_null());
 
         let make_list_err = nix_make_list(ctx, list_builder, final_list);
-        assert_eq!(make_list_err, nix_err_NIX_OK);
+        assert_eq!(make_list_err, NixErr::Ok);
 
         // Test the complex structure
-        assert_eq!(nix_get_type(ctx, final_list), ValueType_NIX_TYPE_LIST);
+        assert_eq!(nix_get_type(ctx, final_list), ValueType::List);
         assert_eq!(nix_get_list_size(ctx, final_list), 2);
 
         // Access nested elements
@@ -398,19 +401,19 @@ fn complex_value_memory_management() {
         let elem1 = nix_get_list_byidx(ctx, final_list, state, 1);
         assert!(!elem0.is_null() && !elem1.is_null());
 
-        assert_eq!(nix_get_type(ctx, elem0), ValueType_NIX_TYPE_ATTRS);
-        assert_eq!(nix_get_type(ctx, elem1), ValueType_NIX_TYPE_ATTRS);
+        assert_eq!(nix_get_type(ctx, elem0), ValueType::Attrs);
+        assert_eq!(nix_get_type(ctx, elem1), ValueType::Attrs);
 
         // Test memory management with deep copying
         let copied_list = nix_alloc_value(ctx, state);
         assert!(!copied_list.is_null());
 
         let copy_err = nix_copy_value(ctx, copied_list, final_list);
-        assert_eq!(copy_err, nix_err_NIX_OK);
+        assert_eq!(copy_err, NixErr::Ok);
 
         // Force deep evaluation on copy
         let deep_force_err = nix_value_force_deep(ctx, state, copied_list);
-        assert_eq!(deep_force_err, nix_err_NIX_OK);
+        assert_eq!(deep_force_err, NixErr::Ok);
 
         // Both should still be accessible
         assert_eq!(nix_get_list_size(ctx, final_list), 2);
@@ -443,34 +446,28 @@ fn memory_management_error_conditions() {
 
         // XXX: May succeed or fail depending on implementation. We can't really
         // know, so assert both.
-        assert!(null_incref_err == nix_err_NIX_OK || null_incref_err == nix_err_NIX_ERR_UNKNOWN);
+        assert!(null_incref_err == NixErr::Ok || null_incref_err == NixErr::Unknown);
 
         let null_decref_err = nix_gc_decref(ctx, std::ptr::null() as *const ::std::os::raw::c_void);
-        assert!(null_decref_err == nix_err_NIX_OK || null_decref_err == nix_err_NIX_ERR_UNKNOWN);
+        assert!(null_decref_err == NixErr::Ok || null_decref_err == NixErr::Unknown);
 
         let null_value_incref_err = nix_value_incref(ctx, std::ptr::null_mut());
         // Some Nix APIs gracefully handle null pointers and return OK
-        assert!(
-            null_value_incref_err == nix_err_NIX_OK
-                || null_value_incref_err == nix_err_NIX_ERR_UNKNOWN
-        );
+        assert!(null_value_incref_err == NixErr::Ok || null_value_incref_err == NixErr::Unknown);
 
         let null_value_decref_err = nix_value_decref(ctx, std::ptr::null_mut());
         // Some Nix APIs gracefully handle null pointers and return OK
-        assert!(
-            null_value_decref_err == nix_err_NIX_OK
-                || null_value_decref_err == nix_err_NIX_ERR_UNKNOWN
-        );
+        assert!(null_value_decref_err == NixErr::Ok || null_value_decref_err == NixErr::Unknown);
 
         // Test copy with NULL values
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -479,7 +476,7 @@ fn memory_management_error_conditions() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -489,10 +486,10 @@ fn memory_management_error_conditions() {
 
         // Test copying to/from NULL
         let copy_from_null_err = nix_copy_value(ctx, valid_value, std::ptr::null_mut());
-        assert_ne!(copy_from_null_err, nix_err_NIX_OK);
+        assert_ne!(copy_from_null_err, NixErr::Ok);
 
         let copy_to_null_err = nix_copy_value(ctx, std::ptr::null_mut(), valid_value);
-        assert_ne!(copy_to_null_err, nix_err_NIX_OK);
+        assert_ne!(copy_to_null_err, NixErr::Ok);
 
         // Clean up
         nix_value_decref(ctx, valid_value);

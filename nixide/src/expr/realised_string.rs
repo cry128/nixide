@@ -12,24 +12,24 @@ use crate::{EvalState, NixideResult, StorePath};
 use crate::{Store, sys};
 
 pub struct RealisedString<'a> {
-    inner: RefCell<NonNull<sys::nix_realised_string>>,
+    inner: RefCell<NonNull<sys::NixRealisedString>>,
     pub path: StorePath,
     pub children: LazyArray<StorePath, Box<dyn Fn(usize) -> StorePath + 'a>>,
 }
 
-impl<'a> AsInnerPtr<sys::nix_realised_string> for RealisedString<'a> {
+impl<'a> AsInnerPtr<sys::NixRealisedString> for RealisedString<'a> {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_realised_string {
+    unsafe fn as_ptr(&self) -> *mut sys::NixRealisedString {
         self.inner.borrow().as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_realised_string {
+    unsafe fn as_ref(&self) -> &sys::NixRealisedString {
         unsafe { self.inner.borrow().as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_realised_string {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixRealisedString {
         unsafe { self.inner.borrow_mut().as_mut() }
     }
 }
@@ -82,7 +82,7 @@ impl<'a> RealisedString<'a> {
         })
     }
 
-    fn parse_path(realised_string: *mut sys::nix_realised_string, store: &Store) -> StorePath {
+    fn parse_path(realised_string: *mut sys::NixRealisedString, store: &Store) -> StorePath {
         let buffer_ptr = unsafe { sys::nix_realised_string_get_buffer_start(realised_string) };
         let buffer_size = unsafe { sys::nix_realised_string_get_buffer_size(realised_string) };
 

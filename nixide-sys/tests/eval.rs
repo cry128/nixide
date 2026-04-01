@@ -1,13 +1,12 @@
 #![cfg(feature = "nix-expr-c")]
 #![cfg(test)]
 
-use std::{
-    ffi::{CStr, CString},
-    ptr,
-};
+use std::ffi::{CStr, CString};
+use std::ptr;
+
+use serial_test::serial;
 
 use nixide_sys::*;
-use serial_test::serial;
 
 #[test]
 #[serial]
@@ -16,13 +15,13 @@ fn eval_init_and_state_build() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libutil_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libutil_init failed: {err}");
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libstore_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libstore_init failed: {err}");
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libexpr_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libexpr_init failed: {err}");
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -31,7 +30,7 @@ fn eval_init_and_state_build() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -51,20 +50,20 @@ fn eval_simple_expression() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libutil_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libutil_init failed: {err}");
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libstore_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libstore_init failed: {err}");
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK, "nix_libexpr_init failed: {err}");
+        assert_eq!(err, NixErr::Ok, "nix_libexpr_init failed: {err}");
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -76,11 +75,11 @@ fn eval_simple_expression() {
         assert!(!value.is_null());
 
         let eval_err = nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), value);
-        assert_eq!(eval_err, nix_err_NIX_OK);
+        assert_eq!(eval_err, NixErr::Ok);
 
         // Force the value (should not be a thunk)
         let force_err = nix_value_force(ctx, state, value);
-        assert_eq!(force_err, nix_err_NIX_OK);
+        assert_eq!(force_err, NixErr::Ok);
 
         nix_state_free(state);
         nix_eval_state_builder_free(builder);
@@ -96,25 +95,25 @@ fn value_construction_and_inspection() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
 
         // Int
         let int_val = nix_alloc_value(ctx, state);
         assert!(!int_val.is_null());
-        assert_eq!(nix_init_int(ctx, int_val, 42), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, int_val), ValueType_NIX_TYPE_INT);
+        assert_eq!(nix_init_int(ctx, int_val, 42), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, int_val), ValueType::Int);
         assert_eq!(nix_get_int(ctx, int_val), 42);
 
         // Float
@@ -122,30 +121,30 @@ fn value_construction_and_inspection() {
         assert!(!float_val.is_null());
         assert_eq!(
             nix_init_float(ctx, float_val, std::f64::consts::PI),
-            nix_err_NIX_OK
+            NixErr::Ok
         );
-        assert_eq!(nix_get_type(ctx, float_val), ValueType_NIX_TYPE_FLOAT);
+        assert_eq!(nix_get_type(ctx, float_val), ValueType::Float);
         assert!((nix_get_float(ctx, float_val) - std::f64::consts::PI).abs() < 1e-10);
 
         // Bool
         let bool_val = nix_alloc_value(ctx, state);
         assert!(!bool_val.is_null());
-        assert_eq!(nix_init_bool(ctx, bool_val, true), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, bool_val), ValueType_NIX_TYPE_BOOL);
+        assert_eq!(nix_init_bool(ctx, bool_val, true), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, bool_val), ValueType::Bool);
         assert!(nix_get_bool(ctx, bool_val));
 
         // Null
         let null_val = nix_alloc_value(ctx, state);
         assert!(!null_val.is_null());
-        assert_eq!(nix_init_null(ctx, null_val), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, null_val), ValueType_NIX_TYPE_NULL);
+        assert_eq!(nix_init_null(ctx, null_val), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, null_val), ValueType::Null);
 
         // String
         let string_val = nix_alloc_value(ctx, state);
         assert!(!string_val.is_null());
         let s = CString::new("hello world").unwrap();
-        assert_eq!(nix_init_string(ctx, string_val, s.as_ptr()), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, string_val), ValueType_NIX_TYPE_STRING);
+        assert_eq!(nix_init_string(ctx, string_val, s.as_ptr()), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, string_val), ValueType::String);
         extern "C" fn string_cb(
             start: *const ::std::os::raw::c_char,
             n: ::std::os::raw::c_uint,
@@ -159,7 +158,7 @@ fn value_construction_and_inspection() {
         let mut got: Option<String> = None;
         assert_eq!(
             nix_get_string(ctx, string_val, Some(string_cb), (&raw mut got).cast()),
-            nix_err_NIX_OK
+            NixErr::Ok
         );
         assert_eq!(got.as_deref(), Some("hello world"));
 
@@ -169,9 +168,9 @@ fn value_construction_and_inspection() {
         let p = CString::new("/nix/store/foo").unwrap();
         assert_eq!(
             nix_init_path_string(ctx, state, path_val, p.as_ptr()),
-            nix_err_NIX_OK
+            NixErr::Ok
         );
-        assert_eq!(nix_get_type(ctx, path_val), ValueType_NIX_TYPE_PATH);
+        assert_eq!(nix_get_type(ctx, path_val), ValueType::Path);
         let path_ptr = nix_get_path_string(ctx, path_val);
         assert!(!path_ptr.is_null());
         let path_str = CStr::from_ptr(path_ptr).to_string_lossy();
@@ -192,17 +191,17 @@ fn list_and_attrset_manipulation() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
 
@@ -220,15 +219,15 @@ fn list_and_attrset_manipulation() {
         nix_list_builder_insert(ctx, list_builder, 2, v3);
 
         let list_val = nix_alloc_value(ctx, state);
-        assert_eq!(nix_make_list(ctx, list_builder, list_val), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, list_val), ValueType_NIX_TYPE_LIST);
+        assert_eq!(nix_make_list(ctx, list_builder, list_val), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, list_val), ValueType::List);
         assert_eq!(nix_get_list_size(ctx, list_val), 3);
 
         // Get elements by index
         for i in 0..3 {
             let elem = nix_get_list_byidx(ctx, list_val, state, i);
             assert!(!elem.is_null());
-            assert_eq!(nix_get_type(ctx, elem), ValueType_NIX_TYPE_INT);
+            assert_eq!(nix_get_type(ctx, elem), ValueType::Int);
             assert_eq!(nix_get_int(ctx, elem), i64::from(i + 1));
         }
 
@@ -248,19 +247,19 @@ fn list_and_attrset_manipulation() {
         nix_bindings_builder_insert(ctx, attr_builder, bar.as_ptr(), bar_val);
 
         let attr_val = nix_alloc_value(ctx, state);
-        assert_eq!(nix_make_attrs(ctx, attr_val, attr_builder), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, attr_val), ValueType_NIX_TYPE_ATTRS);
+        assert_eq!(nix_make_attrs(ctx, attr_val, attr_builder), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, attr_val), ValueType::Attrs);
         assert_eq!(nix_get_attrs_size(ctx, attr_val), 2);
 
         // Get by name
         let foo_got = nix_get_attr_byname(ctx, attr_val, state, foo.as_ptr());
         assert!(!foo_got.is_null());
-        assert_eq!(nix_get_type(ctx, foo_got), ValueType_NIX_TYPE_INT);
+        assert_eq!(nix_get_type(ctx, foo_got), ValueType::Int);
         assert_eq!(nix_get_int(ctx, foo_got), 42);
 
         let bar_got = nix_get_attr_byname(ctx, attr_val, state, bar.as_ptr());
         assert!(!bar_got.is_null());
-        assert_eq!(nix_get_type(ctx, bar_got), ValueType_NIX_TYPE_STRING);
+        assert_eq!(nix_get_type(ctx, bar_got), ValueType::String);
 
         // Has attr
         assert!(nix_has_attr_byname(ctx, attr_val, state, foo.as_ptr()));
@@ -282,17 +281,17 @@ fn function_application_and_force() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
 
@@ -303,7 +302,7 @@ fn function_application_and_force() {
         assert!(!fn_val.is_null());
         assert_eq!(
             nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), fn_val),
-            nix_err_NIX_OK
+            NixErr::Ok
         );
 
         // Argument: 41
@@ -315,16 +314,16 @@ fn function_application_and_force() {
         assert!(!result_val.is_null());
         assert_eq!(
             nix_value_call(ctx, state, fn_val, arg_val, result_val),
-            nix_err_NIX_OK
+            NixErr::Ok
         );
 
         // Force result
-        assert_eq!(nix_value_force(ctx, state, result_val), nix_err_NIX_OK);
-        assert_eq!(nix_get_type(ctx, result_val), ValueType_NIX_TYPE_INT);
+        assert_eq!(nix_value_force(ctx, state, result_val), NixErr::Ok);
+        assert_eq!(nix_get_type(ctx, result_val), ValueType::Int);
         assert_eq!(nix_get_int(ctx, result_val), 42);
 
         // Deep force (should be a no-op for int)
-        assert_eq!(nix_value_force_deep(ctx, state, result_val), nix_err_NIX_OK);
+        assert_eq!(nix_value_force_deep(ctx, state, result_val), NixErr::Ok);
 
         nix_state_free(state);
         nix_eval_state_builder_free(builder);
@@ -340,17 +339,17 @@ fn error_handling_invalid_expression() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
 
@@ -360,7 +359,7 @@ fn error_handling_invalid_expression() {
         let value = nix_alloc_value(ctx, state);
         assert!(!value.is_null());
         let eval_err = nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), value);
-        assert_ne!(eval_err, nix_err_NIX_OK);
+        assert_ne!(eval_err, NixErr::Ok);
 
         nix_state_free(state);
         nix_eval_state_builder_free(builder);
@@ -376,24 +375,24 @@ fn realised_string_and_gc() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
 
         // String value
         let string_val = nix_alloc_value(ctx, state);
         let s = CString::new("hello world").unwrap();
-        assert_eq!(nix_init_string(ctx, string_val, s.as_ptr()), nix_err_NIX_OK);
+        assert_eq!(nix_init_string(ctx, string_val, s.as_ptr()), NixErr::Ok);
 
         // Realise string
         let realised = nix_string_realise(ctx, state, string_val, false);
@@ -422,18 +421,18 @@ fn big_thunk_evaluation() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
         assert!(!builder.is_null());
-        assert_eq!(nix_eval_state_builder_load(ctx, builder), nix_err_NIX_OK);
+        assert_eq!(nix_eval_state_builder_load(ctx, builder), NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -446,10 +445,10 @@ fn big_thunk_evaluation() {
         assert!(!value.is_null());
 
         let eval_err = nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), value);
-        assert_eq!(eval_err, nix_err_NIX_OK);
+        assert_eq!(eval_err, NixErr::Ok);
 
         // The top-level should be an attrset
-        assert_eq!(nix_get_type(ctx, value), ValueType_NIX_TYPE_ATTRS);
+        assert_eq!(nix_get_type(ctx, value), ValueType::Attrs);
 
         // Get "result" attribute (ts should be a thunk initially)
         let result_name = CString::new("result").unwrap();
@@ -458,9 +457,9 @@ fn big_thunk_evaluation() {
 
         // Force the result
         let force_err = nix_value_force(ctx, state, result_val);
-        assert_eq!(force_err, nix_err_NIX_OK);
+        assert_eq!(force_err, NixErr::Ok);
 
-        assert_eq!(nix_get_type(ctx, result_val), ValueType_NIX_TYPE_INT);
+        assert_eq!(nix_get_type(ctx, result_val), ValueType::Int);
         assert_eq!(nix_get_int(ctx, result_val), 13); // ((1+2)*3)+4 = 13
 
         // Get "other" attribute
@@ -469,9 +468,9 @@ fn big_thunk_evaluation() {
         assert!(!other_val.is_null());
 
         let force_err2 = nix_value_force(ctx, state, other_val);
-        assert_eq!(force_err2, nix_err_NIX_OK);
+        assert_eq!(force_err2, NixErr::Ok);
 
-        assert_eq!(nix_get_type(ctx, other_val), ValueType_NIX_TYPE_INT);
+        assert_eq!(nix_get_type(ctx, other_val), ValueType::Int);
         assert_eq!(nix_get_int(ctx, other_val), 3); // 1+2 = 3
 
         nix_state_free(state);
@@ -489,13 +488,13 @@ fn multi_argument_function_calls() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -504,7 +503,7 @@ fn multi_argument_function_calls() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -518,15 +517,15 @@ fn multi_argument_function_calls() {
 
         let eval_err =
             nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), func_value);
-        assert_eq!(eval_err, nix_err_NIX_OK);
+        assert_eq!(eval_err, NixErr::Ok);
 
         // Force evaluation of the function
         let force_err = nix_value_force(ctx, state, func_value);
-        assert_eq!(force_err, nix_err_NIX_OK);
+        assert_eq!(force_err, NixErr::Ok);
 
         // Verify it's a function
         let func_type = nix_get_type(ctx, func_value);
-        assert_eq!(func_type, ValueType_NIX_TYPE_FUNCTION);
+        assert_eq!(func_type, ValueType::Function);
 
         // Create arguments
         let arg1 = nix_alloc_value(ctx, state);
@@ -535,8 +534,8 @@ fn multi_argument_function_calls() {
 
         let init_arg1_err = nix_init_int(ctx, arg1, 10);
         let init_arg2_err = nix_init_int(ctx, arg2, 20);
-        assert_eq!(init_arg1_err, nix_err_NIX_OK);
-        assert_eq!(init_arg2_err, nix_err_NIX_OK);
+        assert_eq!(init_arg1_err, NixErr::Ok);
+        assert_eq!(init_arg2_err, NixErr::Ok);
 
         // Test multi-argument call using nix_value_call_multi
         let mut args = [arg1, arg2];
@@ -544,15 +543,15 @@ fn multi_argument_function_calls() {
         assert!(!result.is_null());
 
         let call_err = nix_value_call_multi(ctx, state, func_value, 2, args.as_mut_ptr(), result);
-        assert_eq!(call_err, nix_err_NIX_OK);
+        assert_eq!(call_err, NixErr::Ok);
 
         // Force the result
         let force_result_err = nix_value_force(ctx, state, result);
-        assert_eq!(force_result_err, nix_err_NIX_OK);
+        assert_eq!(force_result_err, NixErr::Ok);
 
         // Check result type and value
         let result_type = nix_get_type(ctx, result);
-        assert_eq!(result_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(result_type, ValueType::Int);
 
         let result_value = nix_get_int(ctx, result);
         assert_eq!(result_value, 30); // 10 + 20
@@ -577,13 +576,13 @@ fn curried_function_evaluation() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -592,7 +591,7 @@ fn curried_function_evaluation() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -606,7 +605,7 @@ fn curried_function_evaluation() {
 
         let eval_err =
             nix_expr_eval_from_string(ctx, state, expr.as_ptr(), path.as_ptr(), func_value);
-        assert_eq!(eval_err, nix_err_NIX_OK);
+        assert_eq!(eval_err, NixErr::Ok);
 
         // Create three arguments
         let arg1 = nix_alloc_value(ctx, state);
@@ -624,15 +623,15 @@ fn curried_function_evaluation() {
         assert!(!result.is_null());
 
         let call_err = nix_value_call_multi(ctx, state, func_value, 3, args.as_mut_ptr(), result);
-        assert_eq!(call_err, nix_err_NIX_OK);
+        assert_eq!(call_err, NixErr::Ok);
 
         // Force the result
         let force_result_err = nix_value_force(ctx, state, result);
-        assert_eq!(force_result_err, nix_err_NIX_OK);
+        assert_eq!(force_result_err, NixErr::Ok);
 
         // Check result
         let result_type = nix_get_type(ctx, result);
-        assert_eq!(result_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(result_type, ValueType::Int);
 
         let result_value = nix_get_int(ctx, result);
         assert_eq!(result_value, 30); // 5 + 10 + 15
@@ -642,42 +641,42 @@ fn curried_function_evaluation() {
         assert!(!partial1.is_null());
 
         let partial_call1_err = nix_value_call(ctx, state, func_value, arg1, partial1);
-        assert_eq!(partial_call1_err, nix_err_NIX_OK);
+        assert_eq!(partial_call1_err, NixErr::Ok);
 
         // partial1 should still be a function
         let force_partial1_err = nix_value_force(ctx, state, partial1);
-        assert_eq!(force_partial1_err, nix_err_NIX_OK);
+        assert_eq!(force_partial1_err, NixErr::Ok);
 
         let partial1_type = nix_get_type(ctx, partial1);
-        assert_eq!(partial1_type, ValueType_NIX_TYPE_FUNCTION);
+        assert_eq!(partial1_type, ValueType::Function);
 
         // Apply second argument
         let partial2 = nix_alloc_value(ctx, state);
         assert!(!partial2.is_null());
 
         let partial_call2_err = nix_value_call(ctx, state, partial1, arg2, partial2);
-        assert_eq!(partial_call2_err, nix_err_NIX_OK);
+        assert_eq!(partial_call2_err, NixErr::Ok);
 
         // partial2 should still be a function
         let force_partial2_err = nix_value_force(ctx, state, partial2);
-        assert_eq!(force_partial2_err, nix_err_NIX_OK);
+        assert_eq!(force_partial2_err, NixErr::Ok);
 
         let partial2_type = nix_get_type(ctx, partial2);
-        assert_eq!(partial2_type, ValueType_NIX_TYPE_FUNCTION);
+        assert_eq!(partial2_type, ValueType::Function);
 
         // Apply final argument
         let final_result = nix_alloc_value(ctx, state);
         assert!(!final_result.is_null());
 
         let final_call_err = nix_value_call(ctx, state, partial2, arg3, final_result);
-        assert_eq!(final_call_err, nix_err_NIX_OK);
+        assert_eq!(final_call_err, NixErr::Ok);
 
         // Force and check final result
         let force_final_err = nix_value_force(ctx, state, final_result);
-        assert_eq!(force_final_err, nix_err_NIX_OK);
+        assert_eq!(force_final_err, NixErr::Ok);
 
         let final_type = nix_get_type(ctx, final_result);
-        assert_eq!(final_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(final_type, ValueType::Int);
 
         let final_value = nix_get_int(ctx, final_result);
         assert_eq!(final_value, 30); // same result as multi-arg call
@@ -706,13 +705,13 @@ fn thunk_creation_with_init_apply() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -721,7 +720,7 @@ fn thunk_creation_with_init_apply() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -735,33 +734,33 @@ fn thunk_creation_with_init_apply() {
 
         let eval_err =
             nix_expr_eval_from_string(ctx, state, func_expr.as_ptr(), path.as_ptr(), func_value);
-        assert_eq!(eval_err, nix_err_NIX_OK);
+        assert_eq!(eval_err, NixErr::Ok);
 
         // Create an argument
         let arg = nix_alloc_value(ctx, state);
         assert!(!arg.is_null());
 
         let init_arg_err = nix_init_int(ctx, arg, 21);
-        assert_eq!(init_arg_err, nix_err_NIX_OK);
+        assert_eq!(init_arg_err, NixErr::Ok);
 
         // Create a thunk using nix_init_apply (lazy evaluation)
         let thunk = nix_alloc_value(ctx, state);
         assert!(!thunk.is_null());
 
         let apply_err = nix_init_apply(ctx, thunk, func_value, arg);
-        assert_eq!(apply_err, nix_err_NIX_OK);
+        assert_eq!(apply_err, NixErr::Ok);
 
         // Initially, the thunk should be of type THUNK
         let thunk_type = nix_get_type(ctx, thunk);
-        assert_eq!(thunk_type, ValueType_NIX_TYPE_THUNK);
+        assert_eq!(thunk_type, ValueType::Thunk);
 
         // Force evaluation of the thunk
         let force_err = nix_value_force(ctx, state, thunk);
-        assert_eq!(force_err, nix_err_NIX_OK);
+        assert_eq!(force_err, NixErr::Ok);
 
         // After forcing, it should be an integer
         let forced_type = nix_get_type(ctx, thunk);
-        assert_eq!(forced_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(forced_type, ValueType::Int);
 
         let result_value = nix_get_int(ctx, thunk);
         assert_eq!(result_value, 42); // 21 * 2
@@ -785,13 +784,13 @@ fn lookup_path_configuration() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -814,10 +813,10 @@ fn lookup_path_configuration() {
             builder,
             lookup_path_ptrs_null_terminated.as_mut_ptr(),
         );
-        assert_eq!(set_lookup_err, nix_err_NIX_OK);
+        assert_eq!(set_lookup_err, NixErr::Ok);
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -836,12 +835,12 @@ fn lookup_path_configuration() {
         // The evaluation might succeed or fail depending on Nix version and
         // configuration The important thing is that setting the lookup path
         // didn't crash
-        if eval_err == nix_err_NIX_OK {
+        if eval_err == NixErr::Ok {
             let force_err = nix_value_force(ctx, state, result);
-            if force_err == nix_err_NIX_OK {
+            if force_err == NixErr::Ok {
                 let result_type = nix_get_type(ctx, result);
                 // nixPath should be a list
-                assert_eq!(result_type, ValueType_NIX_TYPE_LIST);
+                assert_eq!(result_type, ValueType::List);
             }
         }
 
@@ -862,13 +861,13 @@ fn complex_nested_evaluation() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -877,7 +876,7 @@ fn complex_nested_evaluation() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -907,7 +906,7 @@ fn complex_nested_evaluation() {
 
         // Complex expressions may fail sometimes, check for both success
         // and error
-        if eval_err != nix_err_NIX_OK {
+        if eval_err != NixErr::Ok {
             // If evaluation fails, skip the rest of the test
             nix_value_decref(ctx, result);
             nix_state_free(state);
@@ -919,7 +918,7 @@ fn complex_nested_evaluation() {
 
         // Force deep evaluation
         let force_err = nix_value_force_deep(ctx, state, result);
-        if force_err != nix_err_NIX_OK {
+        if force_err != NixErr::Ok {
             // If forcing fails, skip the rest of the test
             nix_value_decref(ctx, result);
             nix_state_free(state);
@@ -931,7 +930,7 @@ fn complex_nested_evaluation() {
 
         // Verify result structure
         let result_type = nix_get_type(ctx, result);
-        assert_eq!(result_type, ValueType_NIX_TYPE_ATTRS);
+        assert_eq!(result_type, ValueType::Attrs);
 
         let attrs_size = nix_get_attrs_size(ctx, result);
         assert_eq!(attrs_size, 2); // original, sum
@@ -942,7 +941,7 @@ fn complex_nested_evaluation() {
         assert!(!sum_value.is_null());
 
         let sum_type = nix_get_type(ctx, sum_value);
-        assert_eq!(sum_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(sum_type, ValueType::Int);
 
         let sum_result = nix_get_int(ctx, sum_value);
         assert_eq!(sum_result, 15); // 1 + 2 + 3 + 4 + 5
@@ -952,7 +951,7 @@ fn complex_nested_evaluation() {
         let original_value = nix_get_attr_byname(ctx, result, state, original_key.as_ptr());
         if !original_value.is_null() {
             let original_type = nix_get_type(ctx, original_value);
-            assert_eq!(original_type, ValueType_NIX_TYPE_LIST);
+            assert_eq!(original_type, ValueType::List);
 
             let original_size = nix_get_list_size(ctx, original_value);
             assert_eq!(original_size, 5);
@@ -961,7 +960,7 @@ fn complex_nested_evaluation() {
             let first_elem = nix_get_list_byidx(ctx, original_value, state, 0);
             if !first_elem.is_null() {
                 let first_elem_type = nix_get_type(ctx, first_elem);
-                assert_eq!(first_elem_type, ValueType_NIX_TYPE_INT);
+                assert_eq!(first_elem_type, ValueType::Int);
 
                 let first_elem_value = nix_get_int(ctx, first_elem);
                 assert_eq!(first_elem_value, 1);
@@ -985,13 +984,13 @@ fn evaluation_error_handling() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -1000,7 +999,7 @@ fn evaluation_error_handling() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -1014,7 +1013,7 @@ fn evaluation_error_handling() {
 
         let eval_err =
             nix_expr_eval_from_string(ctx, state, invalid_expr.as_ptr(), path.as_ptr(), result);
-        assert_ne!(eval_err, nix_err_NIX_OK); // should fail
+        assert_ne!(eval_err, NixErr::Ok); // should fail
 
         // Clear error for next test
         nix_clear_err(ctx);
@@ -1034,14 +1033,14 @@ fn evaluation_error_handling() {
         );
 
         // May succeed at parse time but fail during evaluation
-        if eval_err2 == nix_err_NIX_OK {
+        if eval_err2 == NixErr::Ok {
             let force_err = nix_value_force(ctx, state, result2);
-            assert_ne!(force_err, nix_err_NIX_OK); // should fail during forcing
+            assert_ne!(force_err, NixErr::Ok); // should fail during forcing
         }
 
         // Test error information retrieval
         let error_code = nix_err_code(ctx);
-        assert_ne!(error_code, nix_err_NIX_OK);
+        assert_ne!(error_code, NixErr::Ok);
 
         // Try to get error message
         let mut error_len: std::os::raw::c_uint = 0;
@@ -1065,7 +1064,7 @@ fn evaluation_error_handling() {
 
         let eval_func_err =
             nix_expr_eval_from_string(ctx, state, func_expr.as_ptr(), path.as_ptr(), func_value);
-        assert_eq!(eval_func_err, nix_err_NIX_OK);
+        assert_eq!(eval_func_err, NixErr::Ok);
 
         // Try to call with wrong number of arguments.
         // The function expects 2, but we give 1
@@ -1087,12 +1086,12 @@ fn evaluation_error_handling() {
         );
 
         // This should succeed but result should be a partially applied function
-        if call_err == nix_err_NIX_OK {
+        if call_err == NixErr::Ok {
             let force_err = nix_value_force(ctx, state, result3);
-            assert_eq!(force_err, nix_err_NIX_OK);
+            assert_eq!(force_err, NixErr::Ok);
 
             let result_type = nix_get_type(ctx, result3);
-            assert_eq!(result_type, ValueType_NIX_TYPE_FUNCTION); // partially applied
+            assert_eq!(result_type, ValueType::Function); // partially applied
         }
 
         // Clean up
@@ -1116,13 +1115,13 @@ fn builtin_function_calls() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -1131,7 +1130,7 @@ fn builtin_function_calls() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -1145,7 +1144,7 @@ fn builtin_function_calls() {
 
         let eval_length_err =
             nix_expr_eval_from_string(ctx, state, length_expr.as_ptr(), path.as_ptr(), length_func);
-        assert_eq!(eval_length_err, nix_err_NIX_OK);
+        assert_eq!(eval_length_err, NixErr::Ok);
 
         // Create a list to test with
         let list_expr = CString::new("[1 2 3 4 5]").unwrap();
@@ -1154,20 +1153,20 @@ fn builtin_function_calls() {
 
         let eval_list_err =
             nix_expr_eval_from_string(ctx, state, list_expr.as_ptr(), path.as_ptr(), test_list);
-        assert_eq!(eval_list_err, nix_err_NIX_OK);
+        assert_eq!(eval_list_err, NixErr::Ok);
 
         // Call length function with the list
         let length_result = nix_alloc_value(ctx, state);
         assert!(!length_result.is_null());
 
         let call_length_err = nix_value_call(ctx, state, length_func, test_list, length_result);
-        assert_eq!(call_length_err, nix_err_NIX_OK);
+        assert_eq!(call_length_err, NixErr::Ok);
 
         let force_length_err = nix_value_force(ctx, state, length_result);
-        assert_eq!(force_length_err, nix_err_NIX_OK);
+        assert_eq!(force_length_err, NixErr::Ok);
 
         let length_type = nix_get_type(ctx, length_result);
-        assert_eq!(length_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(length_type, ValueType::Int);
 
         let length_value = nix_get_int(ctx, length_result);
         assert_eq!(length_value, 5);
@@ -1179,7 +1178,7 @@ fn builtin_function_calls() {
 
         let eval_map_err =
             nix_expr_eval_from_string(ctx, state, map_expr.as_ptr(), path.as_ptr(), map_func);
-        assert_eq!(eval_map_err, nix_err_NIX_OK);
+        assert_eq!(eval_map_err, NixErr::Ok);
 
         // Create a simple function to map: (x: x * 2)
         let double_expr = CString::new("(x: x * 2)").unwrap();
@@ -1188,7 +1187,7 @@ fn builtin_function_calls() {
 
         let eval_double_err =
             nix_expr_eval_from_string(ctx, state, double_expr.as_ptr(), path.as_ptr(), double_func);
-        assert_eq!(eval_double_err, nix_err_NIX_OK);
+        assert_eq!(eval_double_err, NixErr::Ok);
 
         // Call map with the function and list
         let mut args = [double_func, test_list];
@@ -1197,13 +1196,13 @@ fn builtin_function_calls() {
 
         let call_map_err =
             nix_value_call_multi(ctx, state, map_func, 2, args.as_mut_ptr(), map_result);
-        assert_eq!(call_map_err, nix_err_NIX_OK);
+        assert_eq!(call_map_err, NixErr::Ok);
 
         let force_map_err = nix_value_force(ctx, state, map_result);
-        assert_eq!(force_map_err, nix_err_NIX_OK);
+        assert_eq!(force_map_err, NixErr::Ok);
 
         let map_result_type = nix_get_type(ctx, map_result);
-        assert_eq!(map_result_type, ValueType_NIX_TYPE_LIST);
+        assert_eq!(map_result_type, ValueType::List);
 
         let map_result_size = nix_get_list_size(ctx, map_result);
         assert_eq!(map_result_size, 5);
@@ -1213,10 +1212,10 @@ fn builtin_function_calls() {
         assert!(!first_mapped.is_null());
 
         let force_first_err = nix_value_force(ctx, state, first_mapped);
-        assert_eq!(force_first_err, nix_err_NIX_OK);
+        assert_eq!(force_first_err, NixErr::Ok);
 
         let first_mapped_type = nix_get_type(ctx, first_mapped);
-        assert_eq!(first_mapped_type, ValueType_NIX_TYPE_INT);
+        assert_eq!(first_mapped_type, ValueType::Int);
 
         let first_mapped_value = nix_get_int(ctx, first_mapped);
         assert_eq!(first_mapped_value, 2); // 1 * 2

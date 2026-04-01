@@ -10,7 +10,7 @@ use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 
 pub struct NixNull {
-    inner: NonNull<sys::nix_value>,
+    inner: NonNull<sys::NixValue>,
     state: Rc<RefCell<NonNull<sys::EvalState>>>,
 }
 
@@ -51,19 +51,19 @@ impl Debug for NixNull {
     }
 }
 
-impl AsInnerPtr<sys::nix_value> for NixNull {
+impl AsInnerPtr<sys::NixValue> for NixNull {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_value {
+    unsafe fn as_ptr(&self) -> *mut sys::NixValue {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_value {
+    unsafe fn as_ref(&self) -> &sys::NixValue {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_value {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixValue {
         unsafe { self.inner.as_mut() }
     }
 }
@@ -71,10 +71,10 @@ impl AsInnerPtr<sys::nix_value> for NixNull {
 impl NixValue for NixNull {
     #[inline]
     fn type_id(&self) -> sys::ValueType {
-        sys::ValueType_NIX_TYPE_NULL
+        sys::ValueType::Null
     }
 
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
+    fn from(inner: NonNull<sys::NixValue>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self {
         Self { inner, state }
     }
 }

@@ -11,7 +11,7 @@ use crate::util::wrappers::AsInnerPtr;
 
 // XXX: TODO: rename FlakeReference -> FlakeRef
 pub struct FlakeReference {
-    inner: NonNull<sys::nix_flake_reference>,
+    inner: NonNull<sys::NixFlakeReference>,
     fragment: String,
 }
 
@@ -37,19 +37,19 @@ impl Drop for FlakeReference {
     }
 }
 
-impl AsInnerPtr<sys::nix_flake_reference> for FlakeReference {
+impl AsInnerPtr<sys::NixFlakeReference> for FlakeReference {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_reference {
+    unsafe fn as_ptr(&self) -> *mut sys::NixFlakeReference {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_flake_reference {
+    unsafe fn as_ref(&self) -> &sys::NixFlakeReference {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_reference {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixFlakeReference {
         unsafe { self.inner.as_mut() }
     }
 }
@@ -65,7 +65,7 @@ impl FlakeReference {
         flags: &FlakeReferenceParseFlags,
         reference: &str,
     ) -> Result<FlakeReference, NixideError> {
-        let mut ptr: *mut sys::nix_flake_reference = null_mut();
+        let mut ptr: *mut sys::NixFlakeReference = null_mut();
         let fragment = wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
                 sys::nix_flake_reference_and_fragment_from_string(

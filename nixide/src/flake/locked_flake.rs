@@ -10,7 +10,7 @@ use crate::util::wrappers::AsInnerPtr;
 use crate::{EvalState, NixideResult, Value};
 
 pub struct LockedFlake {
-    inner: NonNull<sys::nix_locked_flake>,
+    inner: NonNull<sys::NixLockedFlake>,
 
     flakeref: FlakeReference,
     state: EvalState,
@@ -45,19 +45,19 @@ impl Drop for LockedFlake {
     }
 }
 
-impl AsInnerPtr<sys::nix_locked_flake> for LockedFlake {
+impl AsInnerPtr<sys::NixLockedFlake> for LockedFlake {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_locked_flake {
+    unsafe fn as_ptr(&self) -> *mut sys::NixLockedFlake {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_locked_flake {
+    unsafe fn as_ref(&self) -> &sys::NixLockedFlake {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_locked_flake {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixLockedFlake {
         unsafe { self.inner.as_mut() }
     }
 }

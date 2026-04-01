@@ -30,21 +30,16 @@ use std::rc::Rc;
 
 use crate::errors::ErrorContext;
 use crate::sys;
-use crate::sys::{
-    ValueType_NIX_TYPE_ATTRS, ValueType_NIX_TYPE_BOOL, ValueType_NIX_TYPE_EXTERNAL,
-    ValueType_NIX_TYPE_FLOAT, ValueType_NIX_TYPE_FUNCTION, ValueType_NIX_TYPE_INT,
-    ValueType_NIX_TYPE_LIST, ValueType_NIX_TYPE_NULL, ValueType_NIX_TYPE_PATH,
-    ValueType_NIX_TYPE_STRING, ValueType_NIX_TYPE_THUNK,
-};
+use crate::sys::ValueType;
 use crate::util::wrappers::AsInnerPtr;
 use crate::util::{panic_issue_call_failed, wrap};
 
-pub trait NixValue: Clone + Drop + Display + Debug + AsInnerPtr<sys::nix_value> {
+pub trait NixValue: Clone + Drop + Display + Debug + AsInnerPtr<sys::NixValue> {
     /// TODO
     fn type_id(&self) -> sys::ValueType;
 
     /// TODO
-    fn from(inner: NonNull<sys::nix_value>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self;
+    fn from(inner: NonNull<sys::NixValue>, state: Rc<RefCell<NonNull<sys::EvalState>>>) -> Self;
 }
 
 /// A Nix value
@@ -110,18 +105,8 @@ pub enum Value {
     // Failed(NixFailed),
 }
 
-impl
-    From<(
-        NonNull<sys::nix_value>,
-        Rc<RefCell<NonNull<sys::EvalState>>>,
-    )> for Value
-{
-    fn from(
-        value: (
-            NonNull<sys::nix_value>,
-            Rc<RefCell<NonNull<sys::EvalState>>>,
-        ),
-    ) -> Self {
+impl From<(NonNull<sys::NixValue>, Rc<RefCell<NonNull<sys::EvalState>>>)> for Value {
+    fn from(value: (NonNull<sys::NixValue>, Rc<RefCell<NonNull<sys::EvalState>>>)) -> Self {
         let (inner, state) = value;
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -136,22 +121,20 @@ impl
 
         #[allow(non_upper_case_globals)]
         match type_id {
-            ValueType_NIX_TYPE_THUNK => Value::Thunk(<NixThunk as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_INT => Value::Int(<NixInt as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_FLOAT => Value::Float(<NixFloat as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_BOOL => Value::Bool(<NixBool as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_STRING => Value::String(<NixString as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_PATH => Value::Path(<NixPath as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_NULL => Value::Null(<NixNull as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_ATTRS => Value::Attrs(<NixAttrs as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_LIST => Value::List(<NixList as NixValue>::from(inner, state)),
-            ValueType_NIX_TYPE_FUNCTION => {
-                Value::Function(<NixFunction as NixValue>::from(inner, state))
-            },
-            // ValueType_NIX_TYPE_EXTERNAL => {
+            ValueType::Thunk => Value::Thunk(<NixThunk as NixValue>::from(inner, state)),
+            ValueType::Int => Value::Int(<NixInt as NixValue>::from(inner, state)),
+            ValueType::Float => Value::Float(<NixFloat as NixValue>::from(inner, state)),
+            ValueType::Bool => Value::Bool(<NixBool as NixValue>::from(inner, state)),
+            ValueType::String => Value::String(<NixString as NixValue>::from(inner, state)),
+            ValueType::Path => Value::Path(<NixPath as NixValue>::from(inner, state)),
+            ValueType::Null => Value::Null(<NixNull as NixValue>::from(inner, state)),
+            ValueType::Attrs => Value::Attrs(<NixAttrs as NixValue>::from(inner, state)),
+            ValueType::List => Value::List(<NixList as NixValue>::from(inner, state)),
+            ValueType::Function => Value::Function(<NixFunction as NixValue>::from(inner, state)),
+            // ValueType::External => {
             //     Value::External(<NixExternal as NixValue>::from(inner, state))
             // },
-            // ValueType_NIX_TYPE_FAILED => {
+            // ValueType::Failed => {
             //     Value::Failed(<NixFailed as NixValue>::from(inner, state))
             // },
             _ => unreachable!(),

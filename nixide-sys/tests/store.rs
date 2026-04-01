@@ -1,10 +1,12 @@
 #![cfg(feature = "nix-store-c")]
 #![cfg(test)]
 
-use std::{ffi::CString, ptr};
+use std::ffi::CString;
+use std::ptr;
+
+use serial_test::serial;
 
 use nixide_sys::*;
-use serial_test::serial;
 
 #[test]
 #[serial]
@@ -13,7 +15,7 @@ fn libstore_init_and_open_free() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         // Open the default store (NULL URI, NULL params)
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
@@ -32,7 +34,7 @@ fn parse_and_clone_free_store_path() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
@@ -74,14 +76,14 @@ fn store_get_uri_and_storedir() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let mut uri: Option<String> = None;
         let res = nix_store_get_uri(ctx, store, Some(string_callback), (&raw mut uri).cast());
-        assert_eq!(res, nix_err_NIX_OK);
+        assert_eq!(res, NixErr::Ok);
         assert!(uri.is_some());
 
         let mut storedir: Option<String> = None;
@@ -91,7 +93,7 @@ fn store_get_uri_and_storedir() {
             Some(string_callback),
             (&raw mut storedir).cast(),
         );
-        assert_eq!(res, nix_err_NIX_OK);
+        assert_eq!(res, NixErr::Ok);
         assert!(storedir.is_some());
 
         nix_store_free(store);
@@ -106,7 +108,7 @@ fn libstore_init_no_load_config() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init_no_load_config(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         nix_c_context_free(ctx);
     }
 }
@@ -129,7 +131,7 @@ fn store_is_valid_path_and_real_path() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -150,7 +152,7 @@ fn store_is_valid_path_and_real_path() {
                 (&raw mut real_path).cast(),
             );
             // May fail, but should not crash
-            assert!(res == nix_err_NIX_OK || res == nix_err_NIX_ERR_UNKNOWN);
+            assert!(res == NixErr::Ok || res == NixErr::Unknown);
             nix_store_path_free(store_path);
         }
 
@@ -177,7 +179,7 @@ fn store_path_name() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -215,7 +217,7 @@ fn store_get_version() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -223,7 +225,7 @@ fn store_get_version() {
         let mut version: Option<String> = None;
         let res =
             nix_store_get_version(ctx, store, Some(string_callback), (&raw mut version).cast());
-        assert_eq!(res, nix_err_NIX_OK);
+        assert_eq!(res, NixErr::Ok);
         // Version may be empty for dummy stores, but should not crash
         assert!(version.is_some());
 
@@ -249,7 +251,7 @@ fn store_realise_and_copy_closure() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());

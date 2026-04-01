@@ -12,7 +12,7 @@ pub enum NixideError {
     /// that is instead mapped to [NixError::ExprEval]
     NixError {
         trace: String,
-        inner: sys::nix_err,
+        inner: sys::NixErr,
         err: NixError,
         msg: String,
     },
@@ -84,9 +84,7 @@ pub(crate) use new_nixide_error;
 
 #[allow(unused_macros)]
 macro_rules! retrace_nixide_error {
-    ($x:expr) => {{
-        crate::errors::new_nixide_error!($x.err)
-    }};
+    ($x:expr) => {{ crate::errors::new_nixide_error!($x.err) }};
 }
 pub(crate) use retrace_nixide_error;
 
@@ -102,15 +100,15 @@ impl Display for NixideError {
                 msg,
             } => {
                 write!(f, "[nixide ~ {trace}]{err} (nix_err={inner}): {msg}")
-            }
+            },
 
             NixideError::StringNulByte { trace } => {
                 write!(f, "[nixide ~ {trace}] Got premature `\\0` (NUL) byte")
-            }
+            },
 
             NixideError::StringNotUtf8 { trace } => {
                 write!(f, "[nixide ~ {trace}] Expected UTF-8 encoded string")
-            }
+            },
 
             NixideError::NullPtr { trace } => write!(f, "[nixide ~ {trace}] Got null pointer"),
 
@@ -123,7 +121,7 @@ impl Display for NixideError {
                     f,
                     "[nixide ~ {trace}] Invalid argument `{name}`: reason \"{reason}\""
                 )
-            }
+            },
 
             NixideError::InvalidType {
                 trace,

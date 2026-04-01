@@ -1,13 +1,12 @@
 #![cfg(feature = "nix-expr-c")]
 #![cfg(test)]
 
-use std::{
-    ffi::CString,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use std::ffi::CString;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use serial_test::serial;
 
 use nixide_sys::*;
-use serial_test::serial;
 
 #[derive(Debug)]
 struct TestPrimOpData {
@@ -18,10 +17,10 @@ struct TestPrimOpData {
 // Simple PrimOp that adds 1 to an integer argument
 unsafe extern "C" fn add_one_primop(
     user_data: *mut ::std::os::raw::c_void,
-    context: *mut nix_c_context,
+    context: *mut NixCContext,
     state: *mut EvalState,
-    args: *mut *mut nix_value,
-    ret: *mut nix_value,
+    args: *mut *mut NixValue,
+    ret: *mut NixValue,
 ) {
     if user_data.is_null()
         || context.is_null()
@@ -32,7 +31,7 @@ unsafe extern "C" fn add_one_primop(
         let _ = unsafe {
             nix_set_err_msg(
                 context,
-                nix_err_NIX_ERR_UNKNOWN,
+                NixErr::Unknown,
                 b"Null pointer in add_one_primop\0".as_ptr() as *const _,
             )
         };
@@ -48,7 +47,7 @@ unsafe extern "C" fn add_one_primop(
         let _ = unsafe {
             nix_set_err_msg(
                 context,
-                nix_err_NIX_ERR_UNKNOWN,
+                NixErr::Unknown,
                 b"Missing argument in add_one_primop\0".as_ptr() as *const _,
             )
         };
@@ -56,16 +55,16 @@ unsafe extern "C" fn add_one_primop(
     }
 
     // Force evaluation of argument
-    if unsafe { nix_value_force(context, state, arg) } != nix_err_NIX_OK {
+    if unsafe { nix_value_force(context, state, arg) } != NixErr::Ok {
         return;
     }
 
     // Check if argument is integer
-    if unsafe { nix_get_type(context, arg) } != ValueType_NIX_TYPE_INT {
+    if unsafe { nix_get_type(context, arg) } != ValueType::Int {
         let _ = unsafe {
             nix_set_err_msg(
                 context,
-                nix_err_NIX_ERR_UNKNOWN,
+                NixErr::Unknown,
                 b"Expected integer argument in add_one_primop\0".as_ptr() as *const _,
             )
         };
@@ -83,10 +82,10 @@ unsafe extern "C" fn add_one_primop(
 // PrimOp that returns a constant string
 unsafe extern "C" fn hello_world_primop(
     _user_data: *mut ::std::os::raw::c_void,
-    context: *mut nix_c_context,
+    context: *mut NixCContext,
     _state: *mut EvalState,
-    _args: *mut *mut nix_value,
-    ret: *mut nix_value,
+    _args: *mut *mut NixValue,
+    ret: *mut NixValue,
 ) {
     let hello = CString::new("Hello from Rust PrimOp!").unwrap();
     let _ = unsafe { nix_init_string(context, ret, hello.as_ptr()) };
@@ -95,10 +94,10 @@ unsafe extern "C" fn hello_world_primop(
 // PrimOp that takes multiple arguments and concatenates them
 unsafe extern "C" fn concat_strings_primop(
     _user_data: *mut ::std::os::raw::c_void,
-    context: *mut nix_c_context,
+    context: *mut NixCContext,
     state: *mut EvalState,
-    args: *mut *mut nix_value,
-    ret: *mut nix_value,
+    args: *mut *mut NixValue,
+    ret: *mut NixValue,
 ) {
     if context.is_null() || state.is_null() || args.is_null() || ret.is_null() {
         return;
@@ -113,7 +112,7 @@ unsafe extern "C" fn concat_strings_primop(
             let _ = unsafe {
                 nix_set_err_msg(
                     context,
-                    nix_err_NIX_ERR_UNKNOWN,
+                    NixErr::Unknown,
                     b"Missing argument in concat_strings_primop\0".as_ptr() as *const _,
                 )
             };
@@ -121,15 +120,15 @@ unsafe extern "C" fn concat_strings_primop(
         }
 
         // Force evaluation
-        if unsafe { nix_value_force(context, state, arg) } != nix_err_NIX_OK {
+        if unsafe { nix_value_force(context, state, arg) } != NixErr::Ok {
             return;
         }
 
         // Check if it's a string
-        if unsafe { nix_get_type(context, arg) } != ValueType_NIX_TYPE_STRING {
+        if unsafe { nix_get_type(context, arg) } != ValueType::String {
             let _ = unsafe {
                 static ITEMS: &[u8] = b"Expected string argument in concat_strings_primop\0";
-                nix_set_err_msg(context, nix_err_NIX_ERR_UNKNOWN, ITEMS.as_ptr() as *const _)
+                nix_set_err_msg(context, NixErr::Unknown, ITEMS.as_ptr() as *const _)
             };
             return;
         }
@@ -168,13 +167,13 @@ fn primop_allocation_and_registration() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -183,7 +182,7 @@ fn primop_allocation_and_registration() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -220,7 +219,7 @@ fn primop_allocation_and_registration() {
             let register_err = nix_register_primop(ctx, primop);
             // Registration may fail in some environments, but allocation should work
             assert!(
-                register_err == nix_err_NIX_OK || register_err == nix_err_NIX_ERR_UNKNOWN,
+                register_err == NixErr::Ok || register_err == NixErr::Unknown,
                 "Unexpected error code: {register_err}"
             );
 
@@ -229,7 +228,7 @@ fn primop_allocation_and_registration() {
             assert!(!primop_value.is_null());
 
             let init_err = nix_init_primop(ctx, primop_value, primop);
-            assert_eq!(init_err, nix_err_NIX_OK);
+            assert_eq!(init_err, NixErr::Ok);
 
             // Clean up value
             nix_value_decref(ctx, primop_value);
@@ -252,13 +251,13 @@ fn primop_function_call() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -267,7 +266,7 @@ fn primop_function_call() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -300,21 +299,21 @@ fn primop_function_call() {
             assert!(!primop_value.is_null());
 
             let init_err = nix_init_primop(ctx, primop_value, hello_primop);
-            assert_eq!(init_err, nix_err_NIX_OK);
+            assert_eq!(init_err, NixErr::Ok);
 
             // Call the PrimOp (no arguments)
             let result = nix_alloc_value(ctx, state);
             assert!(!result.is_null());
 
             let call_err = nix_value_call(ctx, state, primop_value, std::ptr::null_mut(), result);
-            if call_err == nix_err_NIX_OK {
+            if call_err == NixErr::Ok {
                 // Force the result
                 let force_err = nix_value_force(ctx, state, result);
-                assert_eq!(force_err, nix_err_NIX_OK);
+                assert_eq!(force_err, NixErr::Ok);
 
                 // Check if result is a string
                 let result_type = nix_get_type(ctx, result);
-                if result_type == ValueType_NIX_TYPE_STRING {
+                if result_type == ValueType::String {
                     // Get string value
                     unsafe extern "C" fn string_callback(
                         start: *const ::std::os::raw::c_char,
@@ -337,10 +336,12 @@ fn primop_function_call() {
                     );
 
                     // Verify we got the expected string
-                    assert!(string_result
-                        .as_deref()
-                        .unwrap_or("")
-                        .contains("Hello from Rust"));
+                    assert!(
+                        string_result
+                            .as_deref()
+                            .unwrap_or("")
+                            .contains("Hello from Rust")
+                    );
                 }
             }
 
@@ -365,13 +366,13 @@ fn primop_with_arguments() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -380,7 +381,7 @@ fn primop_with_arguments() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -417,28 +418,28 @@ fn primop_with_arguments() {
             assert!(!primop_value.is_null());
 
             let init_err = nix_init_primop(ctx, primop_value, add_primop);
-            assert_eq!(init_err, nix_err_NIX_OK);
+            assert_eq!(init_err, NixErr::Ok);
 
             // Create an integer argument
             let arg_value = nix_alloc_value(ctx, state);
             assert!(!arg_value.is_null());
 
             let init_arg_err = nix_init_int(ctx, arg_value, 42);
-            assert_eq!(init_arg_err, nix_err_NIX_OK);
+            assert_eq!(init_arg_err, NixErr::Ok);
 
             // Call the PrimOp with the argument
             let result = nix_alloc_value(ctx, state);
             assert!(!result.is_null());
 
             let call_err = nix_value_call(ctx, state, primop_value, arg_value, result);
-            if call_err == nix_err_NIX_OK {
+            if call_err == NixErr::Ok {
                 // Force the result
                 let force_err = nix_value_force(ctx, state, result);
-                assert_eq!(force_err, nix_err_NIX_OK);
+                assert_eq!(force_err, NixErr::Ok);
 
                 // Check if result is an integer
                 let result_type = nix_get_type(ctx, result);
-                if result_type == ValueType_NIX_TYPE_INT {
+                if result_type == ValueType::Int {
                     let result_value = nix_get_int(ctx, result);
                     assert_eq!(result_value, 43); // 42 + 1
 
@@ -471,13 +472,13 @@ fn primop_multi_argument() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -486,7 +487,7 @@ fn primop_multi_argument() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());
@@ -516,7 +517,7 @@ fn primop_multi_argument() {
             assert!(!primop_value.is_null());
 
             let init_err = nix_init_primop(ctx, primop_value, concat_primop);
-            assert_eq!(init_err, nix_err_NIX_OK);
+            assert_eq!(init_err, NixErr::Ok);
 
             // Create string arguments
             let arg1 = nix_alloc_value(ctx, state);
@@ -528,8 +529,8 @@ fn primop_multi_argument() {
 
             let init_arg1_err = nix_init_string(ctx, arg1, hello_cstr.as_ptr());
             let init_arg2_err = nix_init_string(ctx, arg2, world_cstr.as_ptr());
-            assert_eq!(init_arg1_err, nix_err_NIX_OK);
-            assert_eq!(init_arg2_err, nix_err_NIX_OK);
+            assert_eq!(init_arg1_err, NixErr::Ok);
+            assert_eq!(init_arg2_err, NixErr::Ok);
 
             // Test multi-argument call using nix_value_call_multi
             let mut args = [arg1, arg2];
@@ -538,14 +539,14 @@ fn primop_multi_argument() {
 
             let call_err =
                 nix_value_call_multi(ctx, state, primop_value, 2, args.as_mut_ptr(), result);
-            if call_err == nix_err_NIX_OK {
+            if call_err == NixErr::Ok {
                 // Force the result
                 let force_err = nix_value_force(ctx, state, result);
-                assert_eq!(force_err, nix_err_NIX_OK);
+                assert_eq!(force_err, NixErr::Ok);
 
                 // Check if result is a string
                 let result_type = nix_get_type(ctx, result);
-                if result_type == ValueType_NIX_TYPE_STRING {
+                if result_type == ValueType::String {
                     unsafe extern "C" fn string_callback(
                         start: *const ::std::os::raw::c_char,
                         n: ::std::os::raw::c_uint,
@@ -592,13 +593,13 @@ fn primop_error_handling() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
         assert!(!store.is_null());
@@ -607,7 +608,7 @@ fn primop_error_handling() {
         assert!(!builder.is_null());
 
         let load_err = nix_eval_state_builder_load(ctx, builder);
-        assert_eq!(load_err, nix_err_NIX_OK);
+        assert_eq!(load_err, NixErr::Ok);
 
         let state = nix_eval_state_build(ctx, builder);
         assert!(!state.is_null());

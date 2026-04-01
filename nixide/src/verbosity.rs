@@ -1,13 +1,14 @@
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrappers::AsInnerPtr as _;
-use crate::util::{panic_issue, panic_issue_call_failed, wrap};
+use crate::util::{panic_issue_call_failed, wrap};
 
 /// Verbosity level
 ///
 /// # NOTE
 ///
 /// This should be kept in sync with the C++ implementation (nix::Verbosity)
+///
 #[derive(Debug, Clone, Copy)]
 pub enum NixVerbosity {
     Error,
@@ -20,28 +21,24 @@ pub enum NixVerbosity {
     Vomit,
 }
 
-impl From<sys::nix_verbosity> for NixVerbosity {
-    fn from(level: sys::nix_verbosity) -> NixVerbosity {
+impl From<sys::NixVerbosity> for NixVerbosity {
+    fn from(level: sys::NixVerbosity) -> NixVerbosity {
         match level {
-            sys::nix_verbosity_NIX_LVL_ERROR => NixVerbosity::Error,
-            sys::nix_verbosity_NIX_LVL_WARN => NixVerbosity::Warn,
-            sys::nix_verbosity_NIX_LVL_NOTICE => NixVerbosity::Notice,
-            sys::nix_verbosity_NIX_LVL_INFO => NixVerbosity::Info,
-            sys::nix_verbosity_NIX_LVL_TALKATIVE => NixVerbosity::Talkative,
-            sys::nix_verbosity_NIX_LVL_CHATTY => NixVerbosity::Chatty,
-            sys::nix_verbosity_NIX_LVL_DEBUG => NixVerbosity::Debug,
-            sys::nix_verbosity_NIX_LVL_VOMIT => NixVerbosity::Vomit,
-            value => panic_issue!(
-                "nixide encountered unknown `nix_verbosity` value ({})",
-                value
-            ),
+            sys::NixVerbosity::Error => NixVerbosity::Error,
+            sys::NixVerbosity::Warn => NixVerbosity::Warn,
+            sys::NixVerbosity::Notice => NixVerbosity::Notice,
+            sys::NixVerbosity::Info => NixVerbosity::Info,
+            sys::NixVerbosity::Talkative => NixVerbosity::Talkative,
+            sys::NixVerbosity::Chatty => NixVerbosity::Chatty,
+            sys::NixVerbosity::Debug => NixVerbosity::Debug,
+            sys::NixVerbosity::Vomit => NixVerbosity::Vomit,
         }
     }
 }
 
-impl Into<sys::nix_verbosity> for NixVerbosity {
-    fn into(self) -> sys::nix_verbosity {
-        self as sys::nix_verbosity
+impl Into<sys::NixVerbosity> for NixVerbosity {
+    fn into(self) -> sys::NixVerbosity {
+        self as sys::NixVerbosity
     }
 }
 

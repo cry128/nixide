@@ -1,9 +1,11 @@
+#![cfg(feature = "nix-util-c")]
 #![cfg(test)]
 
 use std::ffi::{CStr, CString};
 
-use nixide_sys::*;
 use serial_test::serial;
+
+use nixide_sys::*;
 
 #[test]
 #[serial]
@@ -22,7 +24,7 @@ fn libutil_init() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
         nix_c_context_free(ctx);
     }
 }
@@ -60,7 +62,7 @@ fn setting_set_and_get() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         // Set a setting (use a dummy/extra setting to avoid breaking global config)
         let key = CString::new("extra-test-setting").unwrap();
@@ -68,7 +70,7 @@ fn setting_set_and_get() {
         let set_err = nix_setting_set(ctx, key.as_ptr(), value.as_ptr());
         // Setting may not exist, but should not crash
         assert!(
-            set_err == nix_err_NIX_OK || set_err == nix_err_NIX_ERR_KEY,
+            set_err == NixErr::Ok || set_err == NixErr::Key,
             "Unexpected error code: {set_err}"
         );
 
@@ -81,11 +83,11 @@ fn setting_set_and_get() {
             (&raw mut got).cast(),
         );
         assert!(
-            get_err == nix_err_NIX_OK || get_err == nix_err_NIX_ERR_KEY,
+            get_err == NixErr::Ok || get_err == NixErr::Key,
             "Unexpected error code: {get_err}"
         );
         // If OK, we should have gotten a value
-        if get_err == nix_err_NIX_OK {
+        if get_err == NixErr::Ok {
             assert_eq!(got.as_deref(), Some("test-value"));
         }
 
@@ -111,16 +113,16 @@ fn error_handling_apis() {
         let ctx = nix_c_context_create();
         assert!(!ctx.is_null());
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         // Set an error message
         let msg = CString::new("custom error message").unwrap();
-        let set_err = nix_set_err_msg(ctx, nix_err_NIX_ERR_UNKNOWN, msg.as_ptr());
-        assert_eq!(set_err, nix_err_NIX_ERR_UNKNOWN);
+        let set_err = nix_set_err_msg(ctx, NixErr::Unknown, msg.as_ptr());
+        assert_eq!(set_err, NixErr::Unknown);
 
         // Get error code
         let code = nix_err_code(ctx);
-        assert_eq!(code, nix_err_NIX_ERR_UNKNOWN);
+        assert_eq!(code, NixErr::Unknown);
 
         // Get error message
         let mut len: std::os::raw::c_uint = 0;
@@ -145,7 +147,7 @@ fn error_handling_apis() {
         // Clear error
         nix_clear_err(ctx);
         let code_after_clear = nix_err_code(ctx);
-        assert_eq!(code_after_clear, nix_err_NIX_OK);
+        assert_eq!(code_after_clear, NixErr::Ok);
 
         nix_c_context_free(ctx);
     }

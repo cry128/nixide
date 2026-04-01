@@ -3,8 +3,9 @@
 
 use std::ptr;
 
-use nixide_sys::*;
 use serial_test::serial;
+
+use nixide_sys::*;
 
 #[test]
 #[serial]
@@ -32,13 +33,13 @@ fn flake_settings_add_to_eval_state_builder() {
         assert!(!ctx.is_null());
 
         let err = nix_libutil_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libstore_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let err = nix_libexpr_init(ctx);
-        assert_eq!(err, nix_err_NIX_OK);
+        assert_eq!(err, NixErr::Ok);
 
         let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
@@ -53,9 +54,8 @@ fn flake_settings_add_to_eval_state_builder() {
         let err = nix_flake_settings_add_to_eval_state_builder(ctx, settings, builder);
         // Accept OK or ERR_UNKNOWN (depends on Nix build/config)
         assert!(
-            err == nix_err_NIX_OK || err == nix_err_NIX_ERR_UNKNOWN,
-            "nix_flake_settings_add_to_eval_state_builder returned unexpected error \
-       code: {err}"
+            err == NixErr::Ok || err == NixErr::Unknown,
+            "nix_flake_settings_add_to_eval_state_builder returned unexpected error code: {err}"
         );
 
         nix_flake_settings_free(settings);

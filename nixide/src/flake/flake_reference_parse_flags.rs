@@ -1,4 +1,3 @@
-use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::ptr::NonNull;
 
@@ -12,7 +11,7 @@ use crate::util::wrappers::AsInnerPtr;
 /// Parameters for parsing a flake reference.
 #[derive(Debug)]
 pub struct FlakeReferenceParseFlags {
-    inner: NonNull<sys::nix_flake_reference_parse_flags>,
+    inner: NonNull<sys::NixFlakeReferenceParseFlags>,
 }
 
 // impl Clone for FlakeReferenceParseFlags {
@@ -36,19 +35,19 @@ impl Drop for FlakeReferenceParseFlags {
     }
 }
 
-impl AsInnerPtr<sys::nix_flake_reference_parse_flags> for FlakeReferenceParseFlags {
+impl AsInnerPtr<sys::NixFlakeReferenceParseFlags> for FlakeReferenceParseFlags {
     #[inline]
-    unsafe fn as_ptr(&self) -> *mut sys::nix_flake_reference_parse_flags {
+    unsafe fn as_ptr(&self) -> *mut sys::NixFlakeReferenceParseFlags {
         self.inner.as_ptr()
     }
 
     #[inline]
-    unsafe fn as_ref(&self) -> &sys::nix_flake_reference_parse_flags {
+    unsafe fn as_ref(&self) -> &sys::NixFlakeReferenceParseFlags {
         unsafe { self.inner.as_ref() }
     }
 
     #[inline]
-    unsafe fn as_mut(&mut self) -> &mut sys::nix_flake_reference_parse_flags {
+    unsafe fn as_mut(&mut self) -> &mut sys::NixFlakeReferenceParseFlags {
         unsafe { self.inner.as_mut() }
     }
 }

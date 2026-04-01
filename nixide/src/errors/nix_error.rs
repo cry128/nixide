@@ -93,15 +93,18 @@ pub enum NixError {
     ///
     /// [NixError::Undocumented] has no equivalent in the `libnix` api.
     /// This is solely a language difference between C++ and Rust, since
-    /// [sys::nix_err] is defined over the *"continuous" (not realy)*
+    /// [sys::NixErr] is defined over the *"continuous" (not realy)*
     /// type [std::os::raw::c_int].
-    Undocumented(sys::nix_err),
+    Undocumented(sys::NixErr),
 }
 
 impl Display for NixError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            NixError::ExprEval { name, info_msg } => write!(f, "[libnix] NixExpr evaluation failed [name=\"{name}\", info_msg=\"{info_msg}\"]"),
+            NixError::ExprEval { name, info_msg } => write!(
+                f,
+                "[libnix] NixExpr evaluation failed [name=\"{name}\", info_msg=\"{info_msg}\"]"
+            ),
             NixError::KeyNotFound(Some(key)) => write!(f, "[libnix] Key not found \"{key}\""),
             NixError::KeyNotFound(None) => write!(f, "[libnix] Key not found"),
             NixError::Overflow => write!(f, "[libnix] Overflow error"),
@@ -115,15 +118,15 @@ impl Display for NixError {
 }
 
 impl NixError {
-    pub fn err_code(&self) -> sys::nix_err {
+    pub fn err_code(&self) -> sys::NixErr {
         match self {
-            NixError::Overflow => sys::nix_err_NIX_ERR_OVERFLOW,
-            NixError::KeyNotFound(_) => sys::nix_err_NIX_ERR_NIX_ERROR,
+            NixError::Overflow => sys::NixErr::Overflow,
+            NixError::KeyNotFound(_) => sys::NixErr::Key,
             NixError::ExprEval {
                 name: _,
                 info_msg: _,
-            } => sys::nix_err_NIX_ERR_NIX_ERROR,
-            NixError::Unknown => sys::nix_err_NIX_ERR_UNKNOWN,
+            } => sys::NixErr::NixError,
+            NixError::Unknown => sys::NixErr::NixError,
             NixError::Undocumented(err) => err.clone(),
         }
     }
