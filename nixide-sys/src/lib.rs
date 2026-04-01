@@ -21,3 +21,7 @@ mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 pub use bindings::root::*;
+
+mod exts;
+#[allow(unused_imports)]
+pub use exts::*;
