@@ -2,7 +2,7 @@
   description = "rust wrapper for libnix";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
 
     fenix = {
@@ -49,7 +49,7 @@
         ...
       }: {
         default = let
-          nixForBindings = pkgs.nixVersions.nix_2_32;
+          nixForBindings = pkgs.nixVersions.nix_2_34;
           inherit (pkgs.rustc) llvmPackages;
         in
           pkgs.mkShell rec {
@@ -113,7 +113,7 @@
           };
 
         nightly = let
-          nixForBindings = pkgs.nixVersions.nix_2_32;
+          nixForBindings = pkgs.nixVersions.nix_2_34;
           inherit (pkgs.rustc) llvmPackages;
         in
           pkgs.mkShell rec {
