@@ -10,7 +10,7 @@ use crate::util::wrappers::AsInnerPtr;
 
 /// Parameters for parsing a flake reference.
 #[derive(Debug)]
-pub struct FlakeReferenceParseFlags {
+pub struct FlakeRefParseFlags {
     inner: NonNull<sys::NixFlakeReferenceParseFlags>,
 }
 
@@ -27,7 +27,7 @@ pub struct FlakeReferenceParseFlags {
 //     }
 // }
 
-impl Drop for FlakeReferenceParseFlags {
+impl Drop for FlakeRefParseFlags {
     fn drop(&mut self) {
         unsafe {
             sys::nix_flake_reference_parse_flags_free(self.inner.as_ptr());
@@ -35,7 +35,7 @@ impl Drop for FlakeReferenceParseFlags {
     }
 }
 
-impl AsInnerPtr<sys::NixFlakeReferenceParseFlags> for FlakeReferenceParseFlags {
+impl AsInnerPtr<sys::NixFlakeReferenceParseFlags> for FlakeRefParseFlags {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::NixFlakeReferenceParseFlags {
         self.inner.as_ptr()
@@ -52,7 +52,7 @@ impl AsInnerPtr<sys::NixFlakeReferenceParseFlags> for FlakeReferenceParseFlags {
     }
 }
 
-impl FlakeReferenceParseFlags {
+impl FlakeRefParseFlags {
     pub fn new(settings: &FlakeSettings) -> NixideResult<Self> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_flake_reference_parse_flags_new(ctx.as_ptr(), settings.as_ptr())

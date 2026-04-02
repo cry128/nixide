@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use super::{FlakeReference, FlakeSettings};
+use super::{FlakeRef, FlakeSettings};
 use crate::NixideResult;
 use crate::errors::ErrorContext;
 use crate::stdext::AsCPtr as _;
@@ -67,7 +67,6 @@ impl AsInnerPtr<sys::NixFlakeLockFlags> for FlakeLockFlags {
 }
 
 impl FlakeLockFlags {
-    // XXX: TODO: what is the default FlakeLockMode?
     pub fn new(settings: &FlakeSettings) -> NixideResult<Self> {
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_flake_lock_flags_new(ctx.as_ptr(), settings.as_ptr())
@@ -76,7 +75,7 @@ impl FlakeLockFlags {
         Ok(FlakeLockFlags { inner })
     }
 
-    pub fn set_mode(&mut self, mode: &FlakeLockMode) -> NixideResult<()> {
+    pub fn set_mode(self, mode: FlakeLockMode) -> NixideResult<Self> {
         wrap::nix_fn!(|ctx: &ErrorContext| {
             match mode {
                 FlakeLockMode::WriteAsNeeded => unsafe {
@@ -89,7 +88,9 @@ impl FlakeLockFlags {
                     sys::nix_flake_lock_flags_set_mode_check(ctx.as_ptr(), self.as_ptr())
                 },
             };
-        })
+        });
+
+        Ok(self)
     }
 
     /// Adds an input override to the lock file that will be produced.
@@ -104,7 +105,7 @@ impl FlakeLockFlags {
     ///
     ///  * `path` - The input name/path to override (must not be empty)
     ///  * `flakeref` - The flake reference to use as the override
-    pub fn override_input(&mut self, path: &str, flakeref: &FlakeReference) -> NixideResult<()> {
+    pub fn override_input(&mut self, path: &str, flakeref: &FlakeRef) -> NixideResult<()> {
         let input_path = path.as_c_ptr()?;
 
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {

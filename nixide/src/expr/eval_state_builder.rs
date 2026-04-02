@@ -77,7 +77,6 @@ impl EvalStateBuilder {
     }
 
     // XXX: TODO: use `flakes()` instead
-    #[deprecated]
     #[cfg(feature = "flakes")]
     pub fn set_flake_settings(self, settings: &FlakeSettings) -> NixideResult<Self> {
         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
@@ -93,7 +92,6 @@ impl EvalStateBuilder {
 
     #[cfg(feature = "flakes")]
     pub fn flakes(self) -> NixideResult<Self> {
-        #[allow(deprecated)]
         self.set_flake_settings(&FlakeSettings::new()?)
     }
 

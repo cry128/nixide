@@ -1,8 +1,10 @@
 // XXX: TODO: find a way to read directly from FlakeSettings and FetchersSettings (the C++ classes)
 
+use std::cell::RefCell;
 use std::ptr::NonNull;
+use std::rc::Rc;
 
-use super::{FetchersSettings, FlakeLockFlags, FlakeReference, FlakeSettings};
+use super::{FetchersSettings, FlakeLockFlags, FlakeLockMode, FlakeRef, FlakeSettings};
 use crate::errors::ErrorContext;
 use crate::sys;
 use crate::util::wrap;
@@ -12,30 +14,12 @@ use crate::{EvalState, NixideResult, Value};
 pub struct LockedFlake {
     inner: NonNull<sys::NixLockedFlake>,
 
-    flakeref: FlakeReference,
-    state: EvalState,
-    flags: FlakeLockFlags,
+    flakeref: FlakeRef,
+    state: Rc<RefCell<NonNull<sys::EvalState>>>,
+    lock_flags: FlakeLockFlags,
     fetch_settings: FetchersSettings,
     flake_settings: FlakeSettings,
 }
-
-// impl Clone for LockedFlake {
-//     fn clone(&self) -> Self {
-//         wrap::nix_fn!(|ctx: &ErrorContext| unsafe {
-//             sys::nix_gc_incref(ctx.as_ptr(), self.as_ptr() as *mut c_void);
-//         })
-//         .unwrap();
-//
-//         Self {
-//             inner: self.inner.clone(),
-//             flakeref: self.flakeref.clone(),
-//             state: self.state.clone(),
-//             flags: self.flags.clone(),
-//             fetch_settings: self.fetch_settings.clone(),
-//             flake_settings: self.flake_settings.clone(),
-//         }
-//     }
-// }
 
 impl Drop for LockedFlake {
     fn drop(&mut self) {
@@ -64,30 +48,33 @@ impl AsInnerPtr<sys::NixLockedFlake> for LockedFlake {
 
 impl LockedFlake {
     pub fn lock(
-        fetch_settings: &FetchersSettings,
-        flake_settings: &FlakeSettings,
+        mode: FlakeLockMode,
+        flakeref: FlakeRef,
         state: &EvalState,
-        flags: &FlakeLockFlags,
-        flakeref: &FlakeReference,
     ) -> NixideResult<LockedFlake> {
+        let state_inner = state.inner_ref();
+        let fetch_settings = FetchersSettings::new()?;
+        let flake_settings = FlakeSettings::new()?;
+        let lock_flags = FlakeLockFlags::new(&flake_settings)?.set_mode(mode)?;
+
         let inner = wrap::nix_ptr_fn!(|ctx: &ErrorContext| unsafe {
             sys::nix_flake_lock(
                 ctx.as_ptr(),
                 fetch_settings.as_ptr(),
                 flake_settings.as_ptr(),
-                state.as_ptr(),
-                flags.as_ptr(),
+                state_inner.borrow().as_ptr(),
+                lock_flags.as_ptr(),
                 flakeref.as_ptr(),
             )
         })?;
 
         Ok(Self {
             inner,
-            flakeref: flakeref.clone(),
-            state: state.clone(),
-            flags: flags.clone(),
-            fetch_settings: fetch_settings.clone(),
-            flake_settings: flake_settings.clone(),
+            flakeref,
+            state: state_inner.clone(),
+            lock_flags,
+            fetch_settings,
+            flake_settings,
         })
     }
 
@@ -97,12 +84,12 @@ impl LockedFlake {
             sys::nix_locked_flake_get_output_attrs(
                 ctx.as_ptr(),
                 self.flake_settings.as_ptr(),
-                self.state.as_ptr(),
+                self.state.borrow().as_ptr(),
                 self.inner.as_ptr(),
             )
         })?;
 
-        Ok(Value::from((value, &self.state)))
+        Ok(Value::from((value, self.state.clone())))
     }
 }
 
@@ -111,8 +98,8 @@ mod tests {
     use std::fs;
     use std::sync::Once;
 
-    use super::{FetchersSettings, FlakeLockFlags, FlakeReference, FlakeSettings, LockedFlake};
-    use crate::flake::{FlakeLockMode, FlakeReferenceParseFlags};
+    use super::{FetchersSettings, FlakeLockFlags, FlakeRef, FlakeSettings, LockedFlake};
+    use crate::flake::{FlakeLockMode, FlakeRefParseFlags};
     use crate::{EvalStateBuilder, Store, Value, set_global_setting};
 
     static INIT: Once = Once::new();
@@ -167,36 +154,19 @@ mod tests {
         let store_ref = Store::default().unwrap();
         let flake_settings = FlakeSettings::new().unwrap();
 
-        let mut eval_state = EvalStateBuilder::new(store_ref.clone())
+        let eval_state = EvalStateBuilder::new(store_ref.clone())
             .unwrap()
             .set_flake_settings(&flake_settings)
             .unwrap()
             .build()
             .unwrap();
 
-        let fetchers_settings = FetchersSettings::new().unwrap();
-        let flake_lock_flags = FlakeLockFlags::new(&flake_settings).unwrap();
-
-        let flakeref = FlakeReference::parse(
-            &fetchers_settings,
-            &flake_settings,
-            &FlakeReferenceParseFlags::new(&flake_settings).unwrap(),
-            &format!("path:{}#subthing", tmp_dir.path().display()),
-        )
-        .unwrap();
+        let flakeref =
+            FlakeRef::parse(&format!("path:{}#subthing", tmp_dir.path().display())).unwrap();
 
         assert_eq!(flakeref.fragment(), "subthing");
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref,
-        )
-        .unwrap();
-
-        let outputs = locked_flake.outputs().unwrap();
+        let outputs = LockedFlake::lock(, flakeref, &eval_state).unwrap().outputs().unwrap();
 
         assert!(matches!(outputs, Value::Attrs(_)));
         if let Value::Attrs(outputs) = outputs {
@@ -216,7 +186,7 @@ mod tests {
         let store_ref = Store::default().unwrap();
         let fetchers_settings = FetchersSettings::new().unwrap();
         let flake_settings = FlakeSettings::new().unwrap();
-        let mut eval_state = EvalStateBuilder::new(store_ref.clone())
+        let eval_state = EvalStateBuilder::new(store_ref.clone())
             .unwrap()
             .set_flake_settings(&flake_settings)
             .unwrap()
@@ -281,33 +251,20 @@ mod tests {
 
         let mut flake_lock_flags = FlakeLockFlags::new(&flake_settings).unwrap();
 
-        let mut flake_reference_parse_flags =
-            FlakeReferenceParseFlags::new(&flake_settings).unwrap();
+        let mut flake_reference_parse_flags = FlakeRefParseFlags::new(&flake_settings).unwrap();
 
         flake_reference_parse_flags
             .set_base_directory(tmp_dir.path().to_str().unwrap())
             .unwrap();
 
-        let flakeref_a = FlakeReference::parse(
-            &fetchers_settings,
-            &flake_settings,
-            &flake_reference_parse_flags,
-            &format!("path:{}", &flake_dir_a_str),
-        )
-        .unwrap();
+        let flakeref_a = FlakeRef::parse(&format!("path:{}", &flake_dir_a_str)).unwrap();
 
         assert_eq!(flakeref_a.fragment(), "");
 
         // Step 1: Do not update (check), fails
         flake_lock_flags.set_mode(&FlakeLockMode::Check).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        );
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state);
         // Has not been locked and would need to write a lock file.
         assert!(locked_flake.is_err());
         let saved_err = match locked_flake {
@@ -318,14 +275,7 @@ mod tests {
         // Step 2: Update but do not write, succeeds
         flake_lock_flags.set_mode(&FlakeLockMode::Virtual).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        )
-        .unwrap();
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state).unwrap();
 
         let outputs = locked_flake.outputs().unwrap();
 
@@ -342,13 +292,7 @@ mod tests {
         // Step 3: The lock was not written, so Step 1 would fail again
         flake_lock_flags.set_mode(&FlakeLockMode::Check).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        );
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state);
         // Has not been locked and would need to write a lock file.
         match locked_flake {
             Ok(_) => panic!("Expected error, but got Ok"),
@@ -362,14 +306,7 @@ mod tests {
             .set_mode(&FlakeLockMode::WriteAsNeeded)
             .unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        )
-        .unwrap();
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state).unwrap();
 
         let outputs = locked_flake.outputs().unwrap();
 
@@ -386,14 +323,7 @@ mod tests {
         // Step 5: Lock was written, so Step 1 succeeds
         flake_lock_flags.set_mode(&FlakeLockMode::Check).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        )
-        .unwrap();
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state).unwrap();
 
         let outputs = locked_flake.outputs().unwrap();
 
@@ -414,25 +344,12 @@ mod tests {
             .set_mode(&FlakeLockMode::WriteAsNeeded)
             .unwrap();
 
-        let flakeref_c = FlakeReference::parse(
-            &fetchers_settings,
-            &flake_settings,
-            &flake_reference_parse_flags,
-            &format!("path:{}", &flake_dir_c_str),
-        )
-        .unwrap();
+        let flakeref_c = FlakeRef::parse(&format!("path:{}", &flake_dir_c_str)).unwrap();
         assert_eq!(flakeref_c.fragment(), "");
 
         flake_lock_flags.override_input("b", &flakeref_c).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        )
-        .unwrap();
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state).unwrap();
 
         let outputs = locked_flake.outputs().unwrap();
 
@@ -452,14 +369,7 @@ mod tests {
         // Step 7: Override was not written; lock still points to b
         flake_lock_flags.set_mode(&FlakeLockMode::Check).unwrap();
 
-        let locked_flake = LockedFlake::lock(
-            &fetchers_settings,
-            &flake_settings,
-            &eval_state,
-            &flake_lock_flags,
-            &flakeref_a,
-        )
-        .unwrap();
+        let locked_flake = LockedFlake::lock(flake_lock_flags, flakeref_a, &eval_state).unwrap();
 
         let outputs = locked_flake.outputs().unwrap();
 

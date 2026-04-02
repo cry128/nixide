@@ -1,17 +1,19 @@
 use std::ffi::{c_char, c_void};
 use std::ptr::{NonNull, null_mut};
 
-use super::{FetchersSettings, FlakeReferenceParseFlags, FlakeSettings};
+use super::{FetchersSettings, FlakeRefParseFlags, FlakeSettings};
 use crate::NixideError;
 use crate::errors::{ErrorContext, new_nixide_error};
 use crate::sys;
 use crate::util::wrap;
 use crate::util::wrappers::AsInnerPtr;
 
-// XXX: TODO: rename FlakeReference -> FlakeRef
-pub struct FlakeReference {
+pub struct FlakeRef {
     inner: NonNull<sys::NixFlakeReference>,
     fragment: String,
+
+    fetch_settings: FetchersSettings,
+    flake_settings: FlakeSettings,
 }
 
 // impl Clone for FlakeReference {
@@ -28,7 +30,7 @@ pub struct FlakeReference {
 //     }
 // }
 
-impl Drop for FlakeReference {
+impl Drop for FlakeRef {
     fn drop(&mut self) {
         unsafe {
             sys::nix_flake_reference_free(self.as_ptr());
@@ -36,7 +38,7 @@ impl Drop for FlakeReference {
     }
 }
 
-impl AsInnerPtr<sys::NixFlakeReference> for FlakeReference {
+impl AsInnerPtr<sys::NixFlakeReference> for FlakeRef {
     #[inline]
     unsafe fn as_ptr(&self) -> *mut sys::NixFlakeReference {
         self.inner.as_ptr()
@@ -53,17 +55,16 @@ impl AsInnerPtr<sys::NixFlakeReference> for FlakeReference {
     }
 }
 
-impl FlakeReference {
+impl FlakeRef {
     /// Parse a flake reference from a string.
     /// The string must be a valid flake reference, such as `github:owner/repo`.
     /// It may also be suffixed with a `#` and a fragment, such as `github:owner/repo#something`,
     /// in which case, the returned string will contain the fragment.
-    pub fn parse(
-        fetch_settings: &FetchersSettings,
-        flake_settings: &FlakeSettings,
-        flags: &FlakeReferenceParseFlags,
-        reference: &str,
-    ) -> Result<FlakeReference, NixideError> {
+    pub fn parse<S: AsRef<str>>(reference: S) -> Result<FlakeRef, NixideError> {
+        let fetch_settings = FetchersSettings::new()?;
+        let flake_settings = FlakeSettings::new()?;
+        let parse_flags = FlakeRefParseFlags::new(&flake_settings)?;
+
         let mut ptr: *mut sys::NixFlakeReference = null_mut();
         let fragment = wrap::nix_string_callback!(
             |callback, userdata: *mut __UserData, ctx: &ErrorContext| unsafe {
@@ -71,9 +72,9 @@ impl FlakeReference {
                     ctx.as_ptr(),
                     fetch_settings.as_ptr(),
                     flake_settings.as_ptr(),
-                    flags.as_ptr(),
-                    reference.as_ptr() as *const c_char,
-                    reference.len(),
+                    parse_flags.as_ptr(),
+                    reference.as_ref().as_ptr() as *const c_char,
+                    reference.as_ref().len(),
                     &mut ptr,
                     Some(callback),
                     userdata as *mut c_void,
@@ -82,7 +83,12 @@ impl FlakeReference {
         )?;
 
         match NonNull::new(ptr) {
-            Some(inner) => Ok(FlakeReference { inner, fragment }),
+            Some(inner) => Ok(FlakeRef {
+                inner,
+                fragment,
+                fetch_settings,
+                flake_settings,
+            }),
             None => Err(new_nixide_error!(NullPtr)),
         }
     }
