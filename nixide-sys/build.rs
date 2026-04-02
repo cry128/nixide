@@ -23,11 +23,6 @@ impl ParseCallbacks for DoxygenCallbacks {
     }
 }
 
-/// Bindfmt is just the name im giving to the callbacks
-/// that handle renaming C/C++ tokens.
-#[derive(Debug)]
-struct BindfmtCallbacks;
-
 #[inline]
 fn strip_variant_prefix(
     prefix: &'static str,
@@ -43,6 +38,11 @@ fn strip_variant_prefix(
         ))
 }
 
+/// Bindfmt is just the name im giving to the callbacks
+/// that handle renaming C/C++ tokens.
+#[derive(Debug)]
+struct BindfmtCallbacks;
+
 impl ParseCallbacks for BindfmtCallbacks {
     fn enum_variant_name(
         &self,
@@ -57,7 +57,9 @@ impl ParseCallbacks for BindfmtCallbacks {
             "NixErr" => strip_variant_prefix("NixErr", enum_name, &variant)
                 .or_else(|_| strip_variant_prefix("Nix", enum_name, &variant))
                 .unwrap(),
-            "ValueType" => strip_variant_prefix("NixType", enum_name, &variant).unwrap(),
+            "ValueType" => strip_variant_prefix("NixType", enum_name, &variant)
+                .or_else(|_| strip_variant_prefix("N", enum_name, &variant))
+                .unwrap(),
             _ => variant,
         })
     }
@@ -106,13 +108,37 @@ fn main() {
         .unique()
         .collect();
 
-    let clang_args: Vec<String> = vec!["-x", "c++", "-std=c++23"]
-        .into_iter()
-        .map(|s: &str| s.to_owned())
-        .chain(include_paths.iter().map(|p| format!("-I{}", p.display())))
-        .collect();
+    // let clang_target = format!(
+    //     "--target={}",
+    //     env::var("CARGO_BUILD_TARGET")
+    //         .expect("Environment variable `CARGO_BUILD_TARGET` not set! nixide/build.rs won't be able to set pointer sizes correctly!"));
+    let clang_args: Vec<String> = vec![
+        "-x",
+        "c++",
+        "-std=c++23",
+        "--target=x86_64-unknown-linux-gnu", // DEBUG
+    ]
+    .into_iter()
+    .map(|s: &str| s.to_owned())
+    .chain(include_paths.iter().map(|p| format!("-I{}", p.display())))
+    .collect();
 
     dbg!(&clang_args);
+
+    cc::Build::new()
+        // .cargo_output(true)
+        // .cargo_warnings(true)
+        // .cargo_metadata(true)
+        // .cargo_debug(cfg!(debug_assertions))
+        .cpp(true)
+        .std("c++23") // libnix compiles against `-std=c++23`
+        .cpp_link_stdlib("stdc++") // use libstdc++
+        .flags(["-fconcepts-diagnostics-depth=2"])
+        .file("libnixide-c/nixide_api_flake.cc")
+        .file("libnixide-c/nixide_api_fetchers.cc")
+        // .files(LIBS.iter().map(|s| (*s).strip_prefix("nix-").unwrap().strip_suffix("-c").unwrap()))
+        .includes(&include_paths)
+        .compile("libnixide");
 
     let mut builder = bindgen::Builder::default()
         .rust_edition(RustEdition::Edition2024)
@@ -124,25 +150,44 @@ fn main() {
         // Format generated bindings with rustfmt
         .formatter(bindgen::Formatter::Rustfmt)
         .rustfmt_configuration_file(std::fs::canonicalize("rustfmt.toml").ok())
+        // Control allow/block listing
+        .allowlist_recursively(true) // DEBUG(TEMP): should remain `false`
+        // .allowlist_file(r".*nix_api_[a-z]+(_internal)?\.h")
         .allowlist_file(r".*nix_api_[a-z]+\.h")
-        // Wrap all unsafe operations in unsafe blocks
-        .layout_tests(true)
+
+        // .allowlist_type("nix_.*")
+        // .allowlist_function("nix_.*")
+        // DEBUG
+        // .allowlist_type(r"nix_locked_flake")
+        // .allowlist_type(r"nix_flake_settings")
+        // .allowlist_type(r"nix_flake_reference")
+        // .allowlist_type(r"nix_flake_reference_parse_flags")
+        // .allowlist_type(r"nix_flake_lock_flags")
+        // DEBUG
+        
+        // .allowlist_file(r".+-gcc-14\.3\.0/include/c\+\+/14\.3\.0/optional") // allow optional type
+        // .blocklist_file(r".*-gcc-[^/]+/include/c++/[0-9\.]+/^(optional).*") // allow optional type
+        // .blocklist_file(r".*-(glibc|clang-wrapper|boost)-.*") // block stdlib (gcc|glibc|clang-wrapper|boost)
+        // .blocklist_type(r".*Optional.*")
+
+        .layout_tests(false) // DEBUG
         .use_core() // use ::core instead of ::std
         .ctypes_prefix("::core::ffi") // use ::core::ffi instead of ::std::os::raw
         .time_phases(true)
+        // Wrap all unsafe operations in unsafe blocks
         .wrap_unsafe_ops(true)
         .trust_clang_mangling(true)
         .respect_cxx_access_specs(true)
         .default_enum_style(bindgen::EnumVariation::Rust { non_exhaustive: false })
-        .translate_enum_integer_types(false)
+        // .translate_enum_integer_types(false)
         .size_t_is_usize(true)
-        .use_distinct_char16_t(false)
+        .use_distinct_char16_t(false) // DEBUG (comment this)
         .generate_comments(false)
         .generate_cstr(true) // use &CStr instead of &[u8]
-        .fit_macro_constants(true)
+        .fit_macro_constants(true) // DEBUG (comment this)
         .explicit_padding(true)
         .enable_cxx_namespaces()
-        .represent_cxx_operators(true)
+        .represent_cxx_operators(false) // DEBUG (comment this)
         .enable_function_attribute_detection()
         .raw_line("/** These bindings were auto-generated for the Nixide project (https://github.com/cry128/nixide) */");
 
