@@ -86,7 +86,7 @@ pub(crate) use new_nixide_error;
 macro_rules! retrace_nixide_error {
     ($x:expr) => {{ crate::errors::new_nixide_error!($x.err) }};
 }
-pub(crate) use retrace_nixide_error;
+// pub(crate) use retrace_nixide_error;
 
 impl std::error::Error for NixideError {}
 

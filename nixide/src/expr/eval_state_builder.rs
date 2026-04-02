@@ -106,8 +106,8 @@ impl EvalStateBuilder {
     }
 
     pub fn set_lookup_path<P: AsRef<str>>(self, paths: Vec<P>) -> NixideResult<Self> {
-        let paths_len = paths.len();
-        let paths_capacity = paths.capacity();
+        // let paths_len = paths.len();
+        // let paths_capacity = paths.capacity();
 
         // XXX: TODO: use the `AsCArray` trait instead
         let mut ptrs: Vec<*const c_char> = paths

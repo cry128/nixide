@@ -15,6 +15,7 @@ use crate::{NixideResult, Store};
 ///
 /// This provides the main interface for evaluating Nix expressions
 /// and creating values.
+#[derive(Clone)]
 pub struct EvalState {
     inner: Rc<RefCell<NonNull<sys::EvalState>>>,
 

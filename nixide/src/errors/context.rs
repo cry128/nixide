@@ -119,7 +119,6 @@ impl Into<NixideResult<()>> for &ErrorContext {
             },
 
             sys::NixErr::Unknown => NixError::Unknown,
-            err => NixError::Undocumented(err),
         };
 
         Err(new_nixide_error!(NixError, inner, err, msg))
