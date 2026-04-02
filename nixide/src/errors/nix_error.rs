@@ -94,7 +94,7 @@ pub enum NixError {
     /// [NixError::Undocumented] has no equivalent in the `libnix` api.
     /// This is solely a language difference between C++ and Rust, since
     /// [sys::NixErr] is defined over the *"continuous" (not realy)*
-    /// type [std::os::raw::c_int].
+    /// type [::core::ffi::c_int].
     Undocumented(sys::NixErr),
 }
 

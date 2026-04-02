@@ -1,7 +1,9 @@
 #![cfg(feature = "nix-util-c")]
 #![cfg(test)]
 
-use std::ffi::{CStr, CString};
+use core::ffi::{CStr, c_char, c_uint, c_void};
+use std::ffi::CString;
+use std::{slice, str};
 
 use serial_test::serial;
 
@@ -47,13 +49,9 @@ fn version_get() {
 #[test]
 #[serial]
 fn setting_set_and_get() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         *unsafe { &mut *out } = Some(s.to_string());
     }
@@ -98,13 +96,9 @@ fn setting_set_and_get() {
 #[test]
 #[serial]
 fn error_handling_apis() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         *unsafe { &mut *out } = Some(s.to_string());
     }
@@ -125,10 +119,10 @@ fn error_handling_apis() {
         assert_eq!(code, NixErr::Unknown);
 
         // Get error message
-        let mut len: std::os::raw::c_uint = 0;
+        let mut len: c_uint = 0;
         let err_msg_ptr = nix_err_msg(ctx, ctx, &mut len as *mut _);
         if !err_msg_ptr.is_null() && len > 0 {
-            let err_msg = std::str::from_utf8(std::slice::from_raw_parts(
+            let err_msg = str::from_utf8(slice::from_raw_parts(
                 err_msg_ptr as *const u8,
                 len as usize,
             ))

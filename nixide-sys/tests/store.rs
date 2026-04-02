@@ -1,8 +1,9 @@
 #![cfg(feature = "nix-store-c")]
 #![cfg(test)]
 
+use core::ffi::{c_char, c_uint, c_void};
 use std::ffi::CString;
-use std::ptr;
+use std::{ptr, slice, str};
 
 use serial_test::serial;
 
@@ -61,13 +62,9 @@ fn parse_and_clone_free_store_path() {
 #[test]
 #[serial]
 fn store_get_uri_and_storedir() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         unsafe { *out = Some(s.to_string()) };
     }
@@ -116,13 +113,9 @@ fn libstore_init_no_load_config() {
 #[test]
 #[serial]
 fn store_is_valid_path_and_real_path() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         unsafe { *out = Some(s.to_string()) };
     }
@@ -133,7 +126,7 @@ fn store_is_valid_path_and_real_path() {
         let err = nix_libstore_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         // Use a dummy path (should not be valid, but should not crash)
@@ -164,13 +157,9 @@ fn store_is_valid_path_and_real_path() {
 #[test]
 #[serial]
 fn store_path_name() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         unsafe { *out = Some(s.to_string()) };
     }
@@ -181,7 +170,7 @@ fn store_path_name() {
         let err = nix_libstore_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let path_str = CString::new("/nix/store/foo-bar-baz").unwrap();
@@ -202,13 +191,9 @@ fn store_path_name() {
 #[test]
 #[serial]
 fn store_get_version() {
-    unsafe extern "C" fn string_callback(
-        start: *const ::std::os::raw::c_char,
-        n: ::std::os::raw::c_uint,
-        user_data: *mut ::std::os::raw::c_void,
-    ) {
-        let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-        let s = std::str::from_utf8(s).unwrap();
+    unsafe extern "C" fn string_callback(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+        let s = str::from_utf8(s).unwrap();
         let out = user_data.cast::<Option<String>>();
         unsafe { *out = Some(s.to_string()) };
     }
@@ -219,7 +204,7 @@ fn store_get_version() {
         let err = nix_libstore_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let mut version: Option<String> = None;
@@ -238,8 +223,8 @@ fn store_get_version() {
 #[serial]
 fn store_realise_and_copy_closure() {
     unsafe extern "C" fn realise_callback(
-        _userdata: *mut ::std::os::raw::c_void,
-        outname: *const ::std::os::raw::c_char,
+        _userdata: *mut c_void,
+        outname: *const c_char,
         out: *const StorePath,
     ) {
         // Just check that callback is called with non-null pointers
@@ -253,7 +238,7 @@ fn store_realise_and_copy_closure() {
         let err = nix_libstore_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         // Use a dummy path (should not crash, may not realise)
@@ -265,7 +250,7 @@ fn store_realise_and_copy_closure() {
                 ctx,
                 store,
                 store_path,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
                 Some(realise_callback),
             );
 

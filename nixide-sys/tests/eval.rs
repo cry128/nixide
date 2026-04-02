@@ -1,8 +1,9 @@
 #![cfg(feature = "nix-expr-c")]
 #![cfg(test)]
 
-use std::ffi::{CStr, CString};
-use std::ptr;
+use ::core::ffi::{CStr, c_char, c_uint, c_void};
+use ::std::ffi::CString;
+use ::std::{f64, ptr, slice};
 
 use serial_test::serial;
 
@@ -23,7 +24,7 @@ fn eval_init_and_state_build() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok, "nix_libexpr_init failed: {err}");
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -58,7 +59,7 @@ fn eval_simple_expression() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok, "nix_libexpr_init failed: {err}");
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -119,12 +120,9 @@ fn value_construction_and_inspection() {
         // Float
         let float_val = nix_alloc_value(ctx, state);
         assert!(!float_val.is_null());
-        assert_eq!(
-            nix_init_float(ctx, float_val, std::f64::consts::PI),
-            NixErr::Ok
-        );
+        assert_eq!(nix_init_float(ctx, float_val, f64::consts::PI), NixErr::Ok);
         assert_eq!(nix_get_type(ctx, float_val), ValueType::Float);
-        assert!((nix_get_float(ctx, float_val) - std::f64::consts::PI).abs() < 1e-10);
+        assert!((nix_get_float(ctx, float_val) - f64::consts::PI).abs() < 1e-10);
 
         // Bool
         let bool_val = nix_alloc_value(ctx, state);
@@ -145,13 +143,9 @@ fn value_construction_and_inspection() {
         let s = CString::new("hello world").unwrap();
         assert_eq!(nix_init_string(ctx, string_val, s.as_ptr()), NixErr::Ok);
         assert_eq!(nix_get_type(ctx, string_val), ValueType::String);
-        extern "C" fn string_cb(
-            start: *const ::std::os::raw::c_char,
-            n: ::std::os::raw::c_uint,
-            user_data: *mut ::std::os::raw::c_void,
-        ) {
-            let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-            let s = std::str::from_utf8(s).unwrap();
+        extern "C" fn string_cb(start: *const c_char, n: c_uint, user_data: *mut c_void) {
+            let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+            let s = str::from_utf8(s).unwrap();
             let out = user_data.cast::<Option<String>>();
             unsafe { *out = Some(s.to_string()) };
         }
@@ -399,8 +393,7 @@ fn realised_string_and_gc() {
         assert!(!realised.is_null());
         let buf = nix_realised_string_get_buffer_start(realised);
         let len = nix_realised_string_get_buffer_size(realised);
-        let realised_str =
-            std::str::from_utf8(std::slice::from_raw_parts(buf.cast::<u8>(), len)).unwrap();
+        let realised_str = str::from_utf8(slice::from_raw_parts(buf.cast::<u8>(), len)).unwrap();
         assert_eq!(realised_str, "hello world");
         assert_eq!(nix_realised_string_get_store_path_count(realised), 0);
 
@@ -496,7 +489,7 @@ fn multi_argument_function_calls() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -584,7 +577,7 @@ fn curried_function_evaluation() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -713,7 +706,7 @@ fn thunk_creation_with_init_apply() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -792,7 +785,7 @@ fn lookup_path_configuration() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -806,7 +799,7 @@ fn lookup_path_configuration() {
 
         let lookup_path_ptrs: Vec<*const _> = lookup_paths.iter().map(|s| s.as_ptr()).collect();
         let mut lookup_path_ptrs_null_terminated = lookup_path_ptrs;
-        lookup_path_ptrs_null_terminated.push(std::ptr::null());
+        lookup_path_ptrs_null_terminated.push(ptr::null());
 
         let set_lookup_err = nix_eval_state_builder_set_lookup_path(
             ctx,
@@ -869,7 +862,7 @@ fn complex_nested_evaluation() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -992,7 +985,7 @@ fn evaluation_error_handling() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -1043,10 +1036,10 @@ fn evaluation_error_handling() {
         assert_ne!(error_code, NixErr::Ok);
 
         // Try to get error message
-        let mut error_len: std::os::raw::c_uint = 0;
+        let mut error_len: c_uint = 0;
         let error_msg_ptr = nix_err_msg(ctx, ctx, &mut error_len as *mut _);
         if !error_msg_ptr.is_null() && error_len > 0 {
-            let error_msg = std::str::from_utf8(std::slice::from_raw_parts(
+            let error_msg = str::from_utf8(slice::from_raw_parts(
                 error_msg_ptr as *const u8,
                 error_len as usize,
             ))
@@ -1123,7 +1116,7 @@ fn builtin_function_calls() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);

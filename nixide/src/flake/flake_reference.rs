@@ -1,5 +1,4 @@
-use std::ffi::c_void;
-use std::os::raw::c_char;
+use std::ffi::{c_char, c_void};
 use std::ptr::{NonNull, null_mut};
 
 use super::{FetchersSettings, FlakeReferenceParseFlags, FlakeSettings};

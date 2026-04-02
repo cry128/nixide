@@ -1,8 +1,10 @@
 #![cfg(feature = "nix-expr-c")]
 #![cfg(test)]
 
+use core::ffi::{c_char, c_uint, c_void};
 use std::ffi::CString;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::{ptr, slice};
 
 use serial_test::serial;
 
@@ -16,7 +18,7 @@ struct TestPrimOpData {
 
 // Simple PrimOp that adds 1 to an integer argument
 unsafe extern "C" fn add_one_primop(
-    user_data: *mut ::std::os::raw::c_void,
+    user_data: *mut c_void,
     context: *mut NixCContext,
     state: *mut EvalState,
     args: *mut *mut NixValue,
@@ -81,7 +83,7 @@ unsafe extern "C" fn add_one_primop(
 
 // PrimOp that returns a constant string
 unsafe extern "C" fn hello_world_primop(
-    _user_data: *mut ::std::os::raw::c_void,
+    _user_data: *mut c_void,
     context: *mut NixCContext,
     _state: *mut EvalState,
     _args: *mut *mut NixValue,
@@ -93,7 +95,7 @@ unsafe extern "C" fn hello_world_primop(
 
 // PrimOp that takes multiple arguments and concatenates them
 unsafe extern "C" fn concat_strings_primop(
-    _user_data: *mut ::std::os::raw::c_void,
+    _user_data: *mut c_void,
     context: *mut NixCContext,
     state: *mut EvalState,
     args: *mut *mut NixValue,
@@ -135,12 +137,12 @@ unsafe extern "C" fn concat_strings_primop(
 
         // Get string value using callback
         unsafe extern "C" fn string_callback(
-            start: *const ::std::os::raw::c_char,
-            n: ::std::os::raw::c_uint,
-            user_data: *mut ::std::os::raw::c_void,
+            start: *const c_char,
+            n: c_uint,
+            user_data: *mut c_void,
         ) {
-            let s = unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-            let s = std::str::from_utf8(s).unwrap_or("");
+            let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+            let s = str::from_utf8(s).unwrap_or("");
             let result = unsafe { &mut *(user_data as *mut String) };
             result.push_str(s);
         }
@@ -150,7 +152,7 @@ unsafe extern "C" fn concat_strings_primop(
                 context,
                 arg,
                 Some(string_callback),
-                &mut result as *mut String as *mut ::std::os::raw::c_void,
+                &mut result as *mut String as *mut c_void,
             )
         };
     }
@@ -175,7 +177,7 @@ fn primop_allocation_and_registration() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -198,7 +200,7 @@ fn primop_allocation_and_registration() {
         let arg_names = [CString::new("x").unwrap()];
         let arg_name_ptrs: Vec<*const _> = arg_names.iter().map(|s| s.as_ptr()).collect();
         let mut arg_name_ptrs_null_terminated = arg_name_ptrs;
-        arg_name_ptrs_null_terminated.push(std::ptr::null());
+        arg_name_ptrs_null_terminated.push(ptr::null());
 
         let name = CString::new("addOne").unwrap();
         let doc = CString::new("Add 1 to the argument").unwrap();
@@ -211,7 +213,7 @@ fn primop_allocation_and_registration() {
             name.as_ptr(),
             arg_name_ptrs_null_terminated.as_mut_ptr(),
             doc.as_ptr(),
-            test_data_ptr as *mut ::std::os::raw::c_void,
+            test_data_ptr as *mut c_void,
         );
 
         if !primop.is_null() {
@@ -259,7 +261,7 @@ fn primop_function_call() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -281,7 +283,7 @@ fn primop_function_call() {
         // Create simple hello world PrimOp (no arguments)
         let name = CString::new("helloWorld").unwrap();
         let doc = CString::new("Returns hello world string").unwrap();
-        let mut empty_args: Vec<*const ::std::os::raw::c_char> = vec![std::ptr::null()];
+        let mut empty_args: Vec<*const c_char> = vec![ptr::null()];
 
         let hello_primop = nix_alloc_primop(
             ctx,
@@ -290,7 +292,7 @@ fn primop_function_call() {
             name.as_ptr(),
             empty_args.as_mut_ptr(),
             doc.as_ptr(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         if !hello_primop.is_null() {
@@ -305,7 +307,7 @@ fn primop_function_call() {
             let result = nix_alloc_value(ctx, state);
             assert!(!result.is_null());
 
-            let call_err = nix_value_call(ctx, state, primop_value, std::ptr::null_mut(), result);
+            let call_err = nix_value_call(ctx, state, primop_value, ptr::null_mut(), result);
             if call_err == NixErr::Ok {
                 // Force the result
                 let force_err = nix_value_force(ctx, state, result);
@@ -316,13 +318,12 @@ fn primop_function_call() {
                 if result_type == ValueType::String {
                     // Get string value
                     unsafe extern "C" fn string_callback(
-                        start: *const ::std::os::raw::c_char,
-                        n: ::std::os::raw::c_uint,
-                        user_data: *mut ::std::os::raw::c_void,
+                        start: *const c_char,
+                        n: c_uint,
+                        user_data: *mut c_void,
                     ) {
-                        let s =
-                            unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-                        let s = std::str::from_utf8(s).unwrap_or("");
+                        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+                        let s = str::from_utf8(s).unwrap_or("");
                         let result = unsafe { &mut *(user_data as *mut Option<String>) };
                         *result = Some(s.to_string());
                     }
@@ -332,7 +333,7 @@ fn primop_function_call() {
                         ctx,
                         result,
                         Some(string_callback),
-                        &mut string_result as *mut Option<String> as *mut ::std::os::raw::c_void,
+                        &mut string_result as *mut Option<String> as *mut c_void,
                     );
 
                     // Verify we got the expected string
@@ -374,7 +375,7 @@ fn primop_with_arguments() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -397,7 +398,7 @@ fn primop_with_arguments() {
         let arg_names = [CString::new("x").unwrap()];
         let arg_name_ptrs: Vec<*const _> = arg_names.iter().map(|s| s.as_ptr()).collect();
         let mut arg_name_ptrs_null_terminated = arg_name_ptrs;
-        arg_name_ptrs_null_terminated.push(std::ptr::null());
+        arg_name_ptrs_null_terminated.push(ptr::null());
 
         let name = CString::new("addOne").unwrap();
         let doc = CString::new("Add 1 to the argument").unwrap();
@@ -409,7 +410,7 @@ fn primop_with_arguments() {
             name.as_ptr(),
             arg_name_ptrs_null_terminated.as_mut_ptr(),
             doc.as_ptr(),
-            test_data_ptr as *mut ::std::os::raw::c_void,
+            test_data_ptr as *mut c_void,
         );
 
         if !add_primop.is_null() {
@@ -480,7 +481,7 @@ fn primop_multi_argument() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -496,7 +497,7 @@ fn primop_multi_argument() {
         let arg_names = [CString::new("s1").unwrap(), CString::new("s2").unwrap()];
         let arg_name_ptrs: Vec<*const _> = arg_names.iter().map(|s| s.as_ptr()).collect();
         let mut arg_name_ptrs_null_terminated = arg_name_ptrs;
-        arg_name_ptrs_null_terminated.push(std::ptr::null());
+        arg_name_ptrs_null_terminated.push(ptr::null());
 
         let name = CString::new("concatStrings").unwrap();
         let doc = CString::new("Concatenate two strings").unwrap();
@@ -508,7 +509,7 @@ fn primop_multi_argument() {
             name.as_ptr(),
             arg_name_ptrs_null_terminated.as_mut_ptr(),
             doc.as_ptr(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         if !concat_primop.is_null() {
@@ -548,13 +549,12 @@ fn primop_multi_argument() {
                 let result_type = nix_get_type(ctx, result);
                 if result_type == ValueType::String {
                     unsafe extern "C" fn string_callback(
-                        start: *const ::std::os::raw::c_char,
-                        n: ::std::os::raw::c_uint,
-                        user_data: *mut ::std::os::raw::c_void,
+                        start: *const c_char,
+                        n: c_uint,
+                        user_data: *mut c_void,
                     ) {
-                        let s =
-                            unsafe { std::slice::from_raw_parts(start.cast::<u8>(), n as usize) };
-                        let s = std::str::from_utf8(s).unwrap_or("");
+                        let s = unsafe { slice::from_raw_parts(start.cast::<u8>(), n as usize) };
+                        let s = str::from_utf8(s).unwrap_or("");
                         let result = unsafe { &mut *(user_data as *mut Option<String>) };
                         *result = Some(s.to_string());
                     }
@@ -564,7 +564,7 @@ fn primop_multi_argument() {
                         ctx,
                         result,
                         Some(string_callback),
-                        &mut string_result as *mut Option<String> as *mut ::std::os::raw::c_void,
+                        &mut string_result as *mut Option<String> as *mut c_void,
                     );
 
                     // Verify concatenation worked
@@ -601,7 +601,7 @@ fn primop_error_handling() {
         let err = nix_libexpr_init(ctx);
         assert_eq!(err, NixErr::Ok);
 
-        let store = nix_store_open(ctx, std::ptr::null(), std::ptr::null_mut());
+        let store = nix_store_open(ctx, ptr::null(), ptr::null_mut());
         assert!(!store.is_null());
 
         let builder = nix_eval_state_builder_new(ctx, store);
@@ -616,7 +616,7 @@ fn primop_error_handling() {
         // Test invalid PrimOp allocation (NULL callback)
         let name = CString::new("invalid").unwrap();
         let doc = CString::new("Invalid PrimOp").unwrap();
-        let mut empty_args: Vec<*const ::std::os::raw::c_char> = vec![std::ptr::null()];
+        let mut empty_args: Vec<*const c_char> = vec![ptr::null()];
 
         let _invalid_primop = nix_alloc_primop(
             ctx,
@@ -625,7 +625,7 @@ fn primop_error_handling() {
             name.as_ptr(),
             empty_args.as_mut_ptr(),
             doc.as_ptr(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         // Test initializing value with NULL PrimOp (should fail)
